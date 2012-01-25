@@ -15,5 +15,37 @@ Your peer info should include the maximum number of neighbours that peer can hav
 To make life easier on yourselves, you should use XML-RPC for communication between peers.
 '''
 
+import sys
+import unittest
+import xmlrpclib
+
+
+class Discover():
+
+  server_address = ''
+
+  def __init__(self, server_address):
+    self.server_address = server_address
+
+  def meh(self):
+    server = xmlrpclib.Server(self.server_address)
+    server.examples.getStateName(41)
+
+
+ #################################### Test ####################################
+
+class TestDicovery(unittest.TestCase):
+
+  def setUp(self):
+    None
+
+  def test_true(self):
+    self.assertEqual(True, True)
+
+
+ #################################### Main ####################################
+
 if __name__ == '__main__':
-  None
+  if '--test' in sys.argv[1:]:
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestDicovery)
+    unittest.TextTestRunner(verbosity=2).run(suite)
