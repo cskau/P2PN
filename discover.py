@@ -19,9 +19,25 @@ import sys
 import unittest
 import xmlrpclib
 import SimpleXMLRPCServer
+import threading;
+
+class Interactor(threading.Thread):
+  server = None;
+
+  def __init__(self, server):
+    threading.Thread.__init__ ( self )
+    self.server = server
+  
+  def run(self):
+    while True:
+      user_input = raw_input('> ')
+      if user_input[:len('hello')] == 'hello':
+        self.server.hello("http://"+user_input[len('hello') + 1:])
+      elif user_input == 'plist':
+        self.server.plist()
 
 
-class Discover():
+class Discover(threading.Thread):
 
   name = None
   capacity = 0
@@ -30,39 +46,45 @@ class Discover():
   port = None
   peers = []
 
-  def __init__(self, name, host, port):
+  def __init__(self, name, host, port, cap):
+    threading.Thread.__init__ ( self )
     self.name = name
     self.host = host
     self.port = port
+    self.capacity = cap
 
   def ping(self, who = None):
+    print "isInPing with who " + who
     if not who in self.peers:
+      #for peer in self.peers:
+      # server = xmlrpclib.Server(peer)
+      #  server.ping(who)
       self.peers.append(who)
-      server = xmlrpclib.Server(who)
-      server.pong(self)
-      for peer in self.peers:
-        server = xmlrpclib.Server(peer)
-        server.ping(who)
     return True
   
   def pong(self, who = None):
     self.peers.append(who)
+    print "isInPong";
     return True
   
   def hello(self, known_address = None):
     server = xmlrpclib.Server(known_address)
     #server.system.method_list()
-    server.ping('http://localhost:8080')
+    print "http://"+self.host+":"+str(self.port)
+    if server.ping("http://"+self.host+":"+str(self.port)):
+      self.pong(known_address)
     return True
   
   def plist(self):
+    print("Capacity: " + str(self.capacity))
+    print("Peer list:")
     for peer in self.peers:
       print(peer)
     return True
   
-  def serve(self, host = None, port = None):
-    _host = host if not host is None else self.host
-    _port = port if not port is None else self.port
+  def run(self):
+    _host = self.host
+    _port = self.port
     self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
@@ -70,15 +92,6 @@ class Discover():
     self.server.register_function(self.pong, "pong")
     print 'Now serving !'
     self.server.serve_forever()
-
-  def interactive(self):
-    while True:
-      user_input = raw_input('> ')
-      if user_input[:len('hello')] == 'hello':
-        self.hello(user_input[len('hello') + 1:])
-      elif user_input == 'plist':
-        self.plist()
-
 
  #################################### Test ####################################
 
@@ -100,13 +113,15 @@ if __name__ == '__main__':
     exit(0)
   
   port = None
+  cap = 0
   if len(sys.argv) > 2:
     port = int(sys.argv[2])
+  if len(sys.argv) > 3:
+    cap = int(sys.argv[3]);
   
   name = sys.argv[1]
-  peer = Discover(name, 'localhost', port)
+  peer = Discover(name, 'localhost', port, cap);
+  peer.start()
+  Interactor(peer).start()
+ 
   
-  if '--interactive' in sys.argv[1:]:
-    peer.interactive()
-  else:
-    peer.serve()
