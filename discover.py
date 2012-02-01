@@ -51,13 +51,13 @@ class Discover():
     self.me = 'http://%s:%s' % (self.host, self.port)
 
   def ping(self, who = None):
-    print 'ping'
+    print 'ping: %s' % who
     if not who is None and not who in self.peers and who != self.me:
       self.action_queue.append(('ping', who))
     return True
   
   def pong(self, who = None):
-    print 'pong'
+    print 'pong %s' % who
     if who != self.me:
       self.peers.append(who)
     return True
@@ -69,7 +69,7 @@ class Discover():
     return True
   
   def plist(self):
-    print 'plist', self.peers
+    print 'plist'
     return self.peers
   
   def serve(self, host = None, port = None):
@@ -84,9 +84,9 @@ class Discover():
     print 'Serving on: %s' % self.me
     # instead of serve_forever, we stop to check our action queue every loop
     while True:
-      #print 'Waiting for request..'
+      print 'Waiting for request..'
       self.server.handle_request()
-      #print '.. got one !'
+      print '.. got one !'
       if self.action_queue:
         action, self.action_queue = self.action_queue[0], self.action_queue[1:]
         if action[0] == 'ping':
@@ -95,12 +95,14 @@ class Discover():
           server = xmlrpclib.Server(who)
           server.pong('http://%s:%s' % (self.host, self.port))
           for peer in self.peers:
-            if peer != self.me:
+            if peer != self.me and peer != who:
               server = xmlrpclib.Server(peer)
               server.ping(who)
 
   def interactive(self):
-    self.server = xmlrpclib.Server('http://%s:%s' % (self.host, self.port))
+    server_address = 'http://%s:%s' % (self.host, self.port)
+    self.server = xmlrpclib.Server(server_address)
+    print 'Connected to: %s' % server_address
     while True:
       try:
         user_input = raw_input('> ')
@@ -134,10 +136,10 @@ if __name__ == '__main__':
     unittest.TextTestRunner(verbosity=2).run(suite)
     exit(0)
   
+  name = sys.argv[1]
   port = int(sys.argv[2]) if len(sys.argv) > 2 else None
   cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
   
-  name = sys.argv[1]
   peer = Discover(name, 'localhost', port, cap)
   
   if '--interactive' in sys.argv[1:]:
