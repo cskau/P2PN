@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: UTF-8
 
-''' A peer, that can discover and list other peers.
+''' A peer that can discover and list other peers.
 Each peer is characterised by:
  - a short, unique name, eg. 'P1'
  - an address, ie. IP address and port number
@@ -19,7 +19,17 @@ import sys
 import unittest
 import xmlrpclib
 import SimpleXMLRPCServer
+import socket
 
+from SocketServer import ThreadingMixIn
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+
+
+#          socket.setdefaulttimeout(1)
+#          socket.setdefaulttimeout(None)
+
+class MyXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
+    """..."""
 
 class Discover():
 
@@ -29,55 +39,79 @@ class Discover():
   host = ''
   port = None
   peers = []
+  me = None
+
+  action_queue = []
 
   def __init__(self, name, host, port):
     self.name = name
     self.host = host
     self.port = port
+    self.me = 'http://%s:%s' % (self.host, self.port)
 
   def ping(self, who = None):
-    if not who in self.peers:
-      self.peers.append(who)
-      server = xmlrpclib.Server(who)
-      server.pong(self)
-      for peer in self.peers:
-        server = xmlrpclib.Server(peer)
-        server.ping(who)
+    print 'ping'
+    if not who is None and not who in self.peers and who != self.me:
+      self.action_queue.append(('ping', who))
     return True
   
   def pong(self, who = None):
-    self.peers.append(who)
+    print 'pong'
+    if who != self.me:
+      self.peers.append(who)
     return True
   
   def hello(self, known_address = None):
+    print 'hello'
     server = xmlrpclib.Server(known_address)
-    #server.system.method_list()
-    server.ping('http://localhost:8080')
+    server.ping('http://%s:%s' % (self.host, self.port))
     return True
   
   def plist(self):
-    for peer in self.peers:
-      print(peer)
-    return True
+    print 'plist', self.peers
+    return self.peers
   
   def serve(self, host = None, port = None):
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
-    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    #self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    self.server = MyXMLRPCServer((_host, _port))
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
     self.server.register_function(self.pong, "pong")
-    print 'Now serving !'
-    self.server.serve_forever()
+    print 'Serving on: %s' % self.me
+    # instead of serve_forever, we stop to check our action queue every loop
+    while True:
+      #print 'Waiting for request..'
+      self.server.handle_request()
+      #print '.. got one !'
+      if self.action_queue:
+        action, self.action_queue = self.action_queue[0], self.action_queue[1:]
+        if action[0] == 'ping':
+          who = action[1]
+          self.peers.append(who)
+          server = xmlrpclib.Server(who)
+          server.pong('http://%s:%s' % (self.host, self.port))
+          for peer in self.peers:
+            if peer != self.me:
+              server = xmlrpclib.Server(peer)
+              server.ping(who)
 
   def interactive(self):
+    self.server = xmlrpclib.Server('http://%s:%s' % (self.host, self.port))
     while True:
-      user_input = raw_input('> ')
-      if user_input[:len('hello')] == 'hello':
-        self.hello(user_input[len('hello') + 1:])
-      elif user_input == 'plist':
-        self.plist()
+      try:
+        user_input = raw_input('> ')
+        if user_input[:len('hello')] == 'hello':
+          self.server.hello(user_input[len('hello') + 1:])
+        elif user_input == 'plist':
+          print self.server.plist()
+        else:
+          print 'Invalid command: %s' % user_input
+      except (EOFError):
+        # for terminal piping
+        break
 
 
  #################################### Test ####################################
