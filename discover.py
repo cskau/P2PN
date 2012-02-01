@@ -19,25 +19,19 @@ import sys
 import unittest
 import xmlrpclib
 import SimpleXMLRPCServer
-import threading;
+import socket
 
-class Interactor(threading.Thread):
-  server = None;
-
-  def __init__(self, server):
-    threading.Thread.__init__ ( self )
-    self.server = server
-  
-  def run(self):
-    while True:
-      user_input = raw_input('> ')
-      if user_input[:len('hello')] == 'hello':
-        self.server.hello("http://"+user_input[len('hello') + 1:])
-      elif user_input == 'plist':
-        self.server.plist()
+from SocketServer import ThreadingMixIn
+from SimpleXMLRPCServer import SimpleXMLRPCServer
 
 
-class Discover(threading.Thread):
+#          socket.setdefaulttimeout(1)
+#          socket.setdefaulttimeout(None)
+
+class MyXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
+    """..."""
+
+class Discover():
 
   name = None
   capacity = 0
@@ -45,53 +39,81 @@ class Discover(threading.Thread):
   host = ''
   port = None
   peers = []
+  me = None
+
+  action_queue = []
 
   def __init__(self, name, host, port, cap):
-    threading.Thread.__init__ ( self )
     self.name = name
     self.host = host
     self.port = port
     self.capacity = cap
+    self.me = 'http://%s:%s' % (self.host, self.port)
 
   def ping(self, who = None):
-    print "isInPing with who " + who
-    if not who in self.peers:
-      #for peer in self.peers:
-      # server = xmlrpclib.Server(peer)
-      #  server.ping(who)
-      self.peers.append(who)
+    print 'ping'
+    if not who is None and not who in self.peers and who != self.me:
+      self.action_queue.append(('ping', who))
     return True
   
   def pong(self, who = None):
-    self.peers.append(who)
-    print "isInPong";
+    print 'pong'
+    if who != self.me:
+      self.peers.append(who)
     return True
   
   def hello(self, known_address = None):
+    print 'hello'
     server = xmlrpclib.Server(known_address)
-    #server.system.method_list()
-    print "http://"+self.host+":"+str(self.port)
-    if server.ping("http://"+self.host+":"+str(self.port)):
-      self.pong(known_address)
+    server.ping('http://%s:%s' % (self.host, self.port))
     return True
   
   def plist(self):
-    print("Capacity: " + str(self.capacity))
-    print("Peer list:")
-    for peer in self.peers:
-      print(peer)
-    return True
+    print 'plist', self.peers
+    return self.peers
   
-  def run(self):
-    _host = self.host
-    _port = self.port
-    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+  def serve(self, host = None, port = None):
+    _host = host if not host is None else self.host
+    _port = port if not port is None else self.port
+    #self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    self.server = MyXMLRPCServer((_host, _port))
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
     self.server.register_function(self.pong, "pong")
-    print 'Now serving !'
-    self.server.serve_forever()
+    print 'Serving on: %s' % self.me
+    # instead of serve_forever, we stop to check our action queue every loop
+    while True:
+      #print 'Waiting for request..'
+      self.server.handle_request()
+      #print '.. got one !'
+      if self.action_queue:
+        action, self.action_queue = self.action_queue[0], self.action_queue[1:]
+        if action[0] == 'ping':
+          who = action[1]
+          self.peers.append(who)
+          server = xmlrpclib.Server(who)
+          server.pong('http://%s:%s' % (self.host, self.port))
+          for peer in self.peers:
+            if peer != self.me:
+              server = xmlrpclib.Server(peer)
+              server.ping(who)
+
+  def interactive(self):
+    self.server = xmlrpclib.Server('http://%s:%s' % (self.host, self.port))
+    while True:
+      try:
+        user_input = raw_input('> ')
+        if user_input[:len('hello')] == 'hello':
+          self.server.hello(user_input[len('hello') + 1:])
+        elif user_input == 'plist':
+          print self.server.plist()
+        else:
+          print 'Invalid command: %s' % user_input
+      except (EOFError):
+        # for terminal piping
+        break
+
 
  #################################### Test ####################################
 
@@ -116,6 +138,9 @@ if __name__ == '__main__':
   cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
   
   name = sys.argv[1]
-  peer = Discover(name, 'localhost', port, cap);
-  peer.start()
-  Interactor(peer).start()
+  peer = Discover(name, 'localhost', port, cap)
+  
+  if '--interactive' in sys.argv[1:]:
+    peer.interactive()
+  else:
+    peer.serve()
