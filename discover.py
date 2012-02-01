@@ -112,16 +112,10 @@ if __name__ == '__main__':
     unittest.TextTestRunner(verbosity=2).run(suite)
     exit(0)
   
-  port = None
-  cap = 0
-  if len(sys.argv) > 2:
-    port = int(sys.argv[2])
-  if len(sys.argv) > 3:
-    cap = int(sys.argv[3]);
+  port = int(sys.argv[2]) if len(sys.argv) > 2 else None
+  cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
   
   name = sys.argv[1]
   peer = Discover(name, 'localhost', port, cap);
   peer.start()
   Interactor(peer).start()
- 
-  
