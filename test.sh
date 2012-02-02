@@ -26,6 +26,8 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
 done
 
+
+
 # wait for peers to come up before connecting to them
 sleep 1
 
