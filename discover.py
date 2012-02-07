@@ -21,18 +21,15 @@ import xmlrpclib
 import SimpleXMLRPCServer
 import socket
 
-def timeout_and_retry(fn, args, timeout=1, retries=10):
-  """Try calling (XML RPC) function until it succeeds or run out of tries"""
-  socket.setdefaulttimeout(timeout)
-  for i in range(retries):
-    try:
-      fn(args)
-    except xmlrpclib.Fault:
-      pass
-    finally:
-      socket.setdefaulttimeout(None)
-      return;
-  raise xmlrpclib.Fault('Failed after %i retries.' % retries);
+from SocketServer import ThreadingMixIn
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+
+
+#          socket.setdefaulttimeout(1)
+#          socket.setdefaulttimeout(None)
+
+class MyXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
+    """..."""
 
 class Discover():
 
@@ -68,7 +65,7 @@ class Discover():
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
-    timeout_and_retry(server.ping, ('http://%s:%s' % (self.host, self.port)))
+    server.ping('http://%s:%s' % (self.host, self.port))
     return True
   
   def plist(self):
@@ -78,7 +75,8 @@ class Discover():
   def serve(self, host = None, port = None):
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
-    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    #self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    self.server = MyXMLRPCServer((_host, _port))
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
@@ -95,11 +93,11 @@ class Discover():
           who = action[1]
           self.peers.append(who)
           server = xmlrpclib.Server(who)
-          timeout_and_retry(server.pong, ('http://%s:%s' % (self.host, self.port)))
+          server.pong('http://%s:%s' % (self.host, self.port))
           for peer in self.peers:
             if peer != self.me and peer != who:
               server = xmlrpclib.Server(peer)
-              timeout_and_retry(server.ping, (who))
+              server.ping(who)
 
   def interactive(self):
     server_address = 'http://%s:%s' % (self.host, self.port)

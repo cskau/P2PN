@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NODES=10
+NODES=4
 PORT=8000
 CAP=10
 
@@ -11,10 +11,10 @@ PORT_TO=$(($PORT + $NODES))
 mkdir ./logs
 
 # setup seed peer in the background
-python -u ./discover.py p$PORT $PORT $CAP &> ./logs/$PORT.log &
+python -u ./discover.py p$PORT $PORT $CAP &>> ./logs/$PORT.log &
 
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
-  python -u ./discover.py p$c $c $CAP &> ./logs/$c.log & # start in background
+  python -u ./discover.py p$c $c $CAP &>> ./logs/$c.log & # start in background
 done
 
 
@@ -26,15 +26,13 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
 done
 
-
-
 # wait for peers to come up before connecting to them
 sleep 1
 
 # start interactive
 ./discover.py --interactive $PORT
 
-./discover.py --interactive 8004
+./discover.py --interactive 8001
 
 # kill all spawned processes
 kill `jobs -p`
