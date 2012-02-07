@@ -120,9 +120,22 @@ class Discover():
  #################################### Test ####################################
 
 class TestDicovery(unittest.TestCase):
-
+  host = ''
+  port = None
+  
+  def __init__(self, host, port):
+    self.host = host
+    self.port = port
+  
+  
   def setUp(self):
+      server_address = 'http://%s:%s' % (self.host, self.port)
+      self.server = xmlrpclib.Server(server_address)
     None
+  
+  def test_discovery(self):
+      server_address = 'http://%s:%s' % (self.host, self.port)
+      self.server = xmlrpclib.Server(server_address)
 
   def test_true(self):
     self.assertEqual(True, True)
