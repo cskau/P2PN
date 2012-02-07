@@ -4,6 +4,10 @@ NODES=10
 PORT=8000
 CAP=10
 
+START="["
+END="]"
+ADRESSES=""
+
 # dynamic vars
 PORT_FROM=$(($PORT + 1))
 PORT_TO=$(($PORT + $NODES))
@@ -24,6 +28,10 @@ sleep 1
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   sleep 1
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
+  ADRESSES=$ADRESSES"\"http://localhost:$c\""
+  sleep 2
+  echo "test http://localhost:$PORT" | ./discover.py $PORT localhost $START$ADRESSES$END --test &
+  ADRESSES=$ADRESSES","
 done
 
 # wait for peers to come up before connecting to them

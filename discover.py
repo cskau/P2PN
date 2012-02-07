@@ -20,6 +20,7 @@ import unittest
 import xmlrpclib
 import SimpleXMLRPCServer
 import socket
+import json
 
 def timeout_and_retry(fn, args, timeout=1, retries=10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
@@ -121,30 +122,33 @@ class Discover():
 
  #################################### Test ####################################
 
-class TestDicovery(unittest.TestCase):
-
-  def setUp(self):
-    None
-
-  def test_true(self):
-    self.assertEqual(True, True)
+class TestDicovery():
+  def testDiscovery(self,host = None,port = None,list = None):
+    known_address = 'http://%s:%s' % (host, port)
+    server = xmlrpclib.Server(known_address)
+    if(list == server.plist()):
+      print 'Lists are equal'
+    else:
+      print 'Expected list: %s actual list: %s equals: %s' %( list,server.plist(), server.plist() == list)
 
 
  #################################### Main ####################################
 
 if __name__ == '__main__':
   if '--test' in sys.argv[1:]:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestDicovery)
-    unittest.TextTestRunner(verbosity=2).run(suite)
-    exit(0)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else None
+    host = sys.argv[2] if len(sys.argv) > 2 else None
+    list = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
+    TestDicovery().testDiscovery(host,port,list)
   
-  name = sys.argv[1]
-  port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-  cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-  
-  peer = Discover(name, 'localhost', port, cap)
-  
-  if '--interactive' in sys.argv[1:]:
-    peer.interactive()
   else:
-    peer.serve()
+    name = sys.argv[1]
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+  
+    peer = Discover(name, 'localhost', port, cap)
+  
+    if '--interactive' in sys.argv[1:]:
+      peer.interactive()
+    else:
+      peer.serve()
