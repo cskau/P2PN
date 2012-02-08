@@ -22,21 +22,21 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(fn, args = None, timeout=1, retries=10):
+def timeout_and_retry(fn, args = None, timeout=1, retries=1000):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   socket.setdefaulttimeout(timeout)
-  result = None
+  res = None
   for i in range(retries):
     try:
       if(args == None):
-        result = fn(args)
+        res = fn()
       else:
-        result = fn()
+        res = fn(args)
     except xmlrpclib.Fault:
       pass
     finally:
       socket.setdefaulttimeout(None)
-      return result
+      return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
 class Discover():
@@ -129,11 +129,11 @@ class TestDicovery():
   def testDiscovery(self,host = None,port = None,list = None):
     known_address = 'http://%s:%s' % (host, port)
     server = xmlrpclib.Server(known_address)
-    actualList = server.plist()
+    actualList = timeout_and_retry(server.plist)
     if(list == actualList):
       print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
     else:
-      print 'Test didn\'t succed Expected list: %s actual list: %s equals: %s' %(list , actualList, False )
+      print 'Test didn\'t succed Expected list: %s actual list: %s' %(list , actualList)
 
 
  #################################### Main ####################################

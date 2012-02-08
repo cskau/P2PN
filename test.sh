@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NODES=30
+NODES=10
 PORT=8000
 CAP=10
 
@@ -29,7 +29,7 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   sleep 1
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
   ADRESSES=$ADRESSES"\"http://localhost:$c\""
-  sleep 2
+  sleep 5
   echo "test http://localhost:$PORT" | ./discover.py $PORT localhost $START$ADRESSES$END --test &
   ADRESSES=$ADRESSES","
 done
