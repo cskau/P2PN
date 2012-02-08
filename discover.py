@@ -22,7 +22,7 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(lmbd, timeout=1, retries=10):
+def timeout_and_retry(lmbd, timeout=2, retries=20):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   socket.setdefaulttimeout(timeout)
@@ -81,7 +81,7 @@ class Discover():
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
     self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
-    self.server.handle_timeout(10)
+    self.server.timeout = 1
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
@@ -89,20 +89,23 @@ class Discover():
     print 'Serving on: %s' % self.me
     # instead of serve_forever, we stop to check our action queue every loop
     while True:
-      print 'Waiting for request..'
       self.server.handle_request()
-      print '.. got one !'
       if self.action_queue:
-        action, self.action_queue = self.action_queue[0], self.action_queue[1:]
-        if action[0] == 'ping':
-          who = action[1]
-          self.peers.append(who)
-          server = xmlrpclib.Server(who)
-          timeout_and_retry(lambda:server.pong('http://%s:%s' % (self.host, self.port)))
-          for peer in self.peers:
-            if peer != self.me and peer != who:
-              server = xmlrpclib.Server(peer)
-              timeout_and_retry(lambda:server.ping(who))
+        try:
+          action = self.action_queue[0]
+          if action[0] == 'ping':
+            who = action[1]
+            self.peers.append(who)
+            server = xmlrpclib.Server(who)
+            timeout_and_retry(lambda:server.pong('http://%s:%s' % (self.host, self.port)))
+            for peer in self.peers:
+              if peer != self.me and peer != who:
+                server = xmlrpclib.Server(peer)
+                timeout_and_retry(lambda:server.ping(who))
+        except:
+          continue
+        finally:
+          self.action_queue = self.action_queue[1:]
 
   def interactive(self):
     server_address = 'http://%s:%s' % (self.host, self.port)
@@ -125,25 +128,30 @@ class Discover():
  #################################### Test ####################################
 
 class TestDicovery():
-  def testDiscovery(self,host = None,port = None,list = None):
+  def testDiscovery(self, host=None, port=None, list=None):
     known_address = 'http://%s:%s' % (host, port)
-    server = xmlrpclib.Server(known_address)
-    actualList = timeout_and_retry(lambda:server.plist)
-    if(list == actualList):
-      print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
-    else:
-      print 'Test didn\'t succed Expected list: %s actual list: %s' %(list , actualList)
+    while True:
+      try:
+        server = xmlrpclib.Server(known_address)
+        actualList = timeout_and_retry(lambda:server.plist())
+      except:
+        continue
+      finally:
+        if(set(list) == set(actualList)):
+          print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(list)) 
+        else:
+          print 'Test didn\'t succeed Expected list: %s actual list: %s' %(list , actualList)
+        break
 
 
  #################################### Main ####################################
 
 if __name__ == '__main__':
   if '--test' in sys.argv[1:]:
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else None
-    host = sys.argv[2] if len(sys.argv) > 2 else None
-    list = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
-    TestDicovery().testDiscovery(host,port,list)
-  
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    host = sys.argv[3] if len(sys.argv) > 3 else None
+    list = json.loads(sys.argv[4]) if len(sys.argv) > 4 else ''
+    TestDicovery().testDiscovery(host, port, list)
   else:
     name = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
