@@ -20,18 +20,20 @@ import unittest
 import xmlrpclib
 import SimpleXMLRPCServer
 import socket
+import json
 
-def timeout_and_retry(fn, args, timeout=1, retries=10):
+def timeout_and_retry(fn, args = None, timeout=1, retries=10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
+  res = None
   socket.setdefaulttimeout(timeout)
   for i in range(retries):
     try:
-      fn(args)
+      res = fn(args)
     except xmlrpclib.Fault:
       pass
     finally:
       socket.setdefaulttimeout(None)
-      return;
+      return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
 class Discover():
@@ -72,7 +74,6 @@ class Discover():
     return True
   
   def plist(self):
-    print 'plist'
     return self.peers
   
   def serve(self, host = None, port = None):
@@ -121,30 +122,34 @@ class Discover():
 
  #################################### Test ####################################
 
-class TestDicovery(unittest.TestCase):
-
-  def setUp(self):
-    None
-
-  def test_true(self):
-    self.assertEqual(True, True)
+class TestDicovery():
+  def testDiscovery(self,host = None,port = None,list = None):
+    known_address = 'http://%s:%s' % (host, port)
+    server = xmlrpclib.Server(known_address)
+    actualList = server.plist()
+    if(list == actualList):
+      print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
+    else:
+      print 'Test didn\'t succed Expected list: %s actual list: %s equals: %s' %(list , actualList, False )
 
 
  #################################### Main ####################################
 
 if __name__ == '__main__':
   if '--test' in sys.argv[1:]:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestDicovery)
-    unittest.TextTestRunner(verbosity=2).run(suite)
-    exit(0)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else None
+    host = sys.argv[2] if len(sys.argv) > 2 else None
+    list = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
+    TestDicovery().testDiscovery(host,port,list)
   
-  name = sys.argv[1]
-  port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-  cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-  
-  peer = Discover(name, 'localhost', port, cap)
-  
-  if '--interactive' in sys.argv[1:]:
-    peer.interactive()
   else:
-    peer.serve()
+    name = sys.argv[1]
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+  
+    peer = Discover(name, 'localhost', port, cap)
+  
+    if '--interactive' in sys.argv[1:]:
+      peer.interactive()
+    else:
+      peer.serve()
