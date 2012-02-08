@@ -18,7 +18,7 @@ echo "Setting up root.."
 # setup seed peer in the background
 python -u ./discover.py p$PORT $PORT $CAP &> ./logs/$PORT.log &
 
-echo "Setting up nodes.."
+echo "Setting up $NODES nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   python -u ./discover.py p$c $c $CAP &> ./logs/$c.log & # start in background
 done

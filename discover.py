@@ -22,7 +22,7 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(lmbd, timeout=2, retries=20):
+def timeout_and_retry(lmbd, timeout = 1, retries = 10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   socket.setdefaulttimeout(timeout)
@@ -128,19 +128,19 @@ class Discover():
  #################################### Test ####################################
 
 class TestDicovery():
-  def testDiscovery(self, host=None, port=None, list=None):
+  def testDiscovery(self, host = None, port = None, expected_set = None):
     known_address = 'http://%s:%s' % (host, port)
     while True:
       try:
         server = xmlrpclib.Server(known_address)
-        actualList = timeout_and_retry(lambda:server.plist())
+        actual_set = set(timeout_and_retry(lambda:server.plist()))
       except:
         continue
       finally:
-        if(set(list) == set(actualList)):
-          print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(list)) 
+        if(expected_set == actual_set):
+          print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(actual_set)) 
         else:
-          print 'Test didn\'t succeed Expected list: %s actual list: %s' %(list , actualList)
+          print 'Test didn\'t succeed Expected set: %s actual list: %s' %(list , actual_set)
         break
 
 
@@ -150,8 +150,8 @@ if __name__ == '__main__':
   if '--test' in sys.argv[1:]:
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
     host = sys.argv[3] if len(sys.argv) > 3 else None
-    list = json.loads(sys.argv[4]) if len(sys.argv) > 4 else ''
-    TestDicovery().testDiscovery(host, port, list)
+    expected_set = set(json.loads(sys.argv[4]) if len(sys.argv) > 4 else '')
+    TestDicovery().testDiscovery(host, port, expected_set)
   else:
     name = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
