@@ -24,19 +24,16 @@ import json
 
 def timeout_and_retry(fn, args = None, timeout=1, retries=10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
+  res = None
   socket.setdefaulttimeout(timeout)
-  result = None
   for i in range(retries):
     try:
-      if(args == None):
-        result = fn(args)
-      else:
-        result = fn()
+      res = fn(args)
     except xmlrpclib.Fault:
       pass
     finally:
       socket.setdefaulttimeout(None)
-      return result
+      return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
 class Discover():
