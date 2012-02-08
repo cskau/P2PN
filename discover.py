@@ -127,11 +127,11 @@ class TestDicovery():
   def testDiscovery(self,host = None,port = None,list = None):
     known_address = 'http://%s:%s' % (host, port)
     server = xmlrpclib.Server(known_address)
-    actualList = server.plist()
+    actualList = timeout_and_retry(lambda:server.plist)
     if(list == actualList):
       print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
     else:
-      print 'Test didn\'t succed Expected list: %s actual list: %s equals: %s' %(list , actualList, False )
+      print 'Test didn\'t succed Expected list: %s actual list: %s' %(list , actualList)
 
 
  #################################### Main ####################################
