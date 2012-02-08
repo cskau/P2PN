@@ -22,17 +22,21 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(fn, args, timeout=1, retries=10):
+def timeout_and_retry(fn, args = None, timeout=1, retries=10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   socket.setdefaulttimeout(timeout)
+  result = None
   for i in range(retries):
     try:
-      fn(args)
+      if(args == None):
+        result = fn(args)
+      else:
+        result = fn()
     except xmlrpclib.Fault:
       pass
     finally:
       socket.setdefaulttimeout(None)
-      return;
+      return result
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
 class Discover():
@@ -73,7 +77,6 @@ class Discover():
     return True
   
   def plist(self):
-    print 'plist'
     return self.peers
   
   def serve(self, host = None, port = None):
@@ -126,10 +129,11 @@ class TestDicovery():
   def testDiscovery(self,host = None,port = None,list = None):
     known_address = 'http://%s:%s' % (host, port)
     server = xmlrpclib.Server(known_address)
-    if(list == server.plist()):
-      print 'Lists are equal'
+    actualList = server.plist()
+    if(list == actualList):
+      print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
     else:
-      print 'Expected list: %s actual list: %s equals: %s' %( list,server.plist(), server.plist() == list)
+      print 'Test didn\'t succed Expected list: %s actual list: %s equals: %s' %(list , actualList, False )
 
 
  #################################### Main ####################################

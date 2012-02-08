@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NODES=10
+NODES=30
 PORT=8000
 CAP=10
 
