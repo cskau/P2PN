@@ -81,6 +81,7 @@ class Discover():
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
     self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    self.server.handle_timeout(10)
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
