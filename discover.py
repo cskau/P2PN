@@ -22,13 +22,13 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(fn, args = None, timeout=1, retries=10):
+def timeout_and_retry(lmbd, timeout=1, retries=10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   socket.setdefaulttimeout(timeout)
   for i in range(retries):
     try:
-      res = fn(args)
+      res = lmbd()
     except xmlrpclib.Fault:
       pass
     finally:
@@ -70,7 +70,8 @@ class Discover():
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
-    timeout_and_retry(server.ping, ('http://%s:%s' % (self.host, self.port)))
+    timeout_and_retry(
+        lambda:(server.ping('http://%s:%s' % (self.host, self.port))))
     return True
   
   def plist(self):
@@ -96,11 +97,11 @@ class Discover():
           who = action[1]
           self.peers.append(who)
           server = xmlrpclib.Server(who)
-          timeout_and_retry(server.pong, ('http://%s:%s' % (self.host, self.port)))
+          timeout_and_retry(lambda:server.pong('http://%s:%s' % (self.host, self.port)))
           for peer in self.peers:
             if peer != self.me and peer != who:
               server = xmlrpclib.Server(peer)
-              timeout_and_retry(server.ping, (who))
+              timeout_and_retry(lambda:server.ping(who))
 
   def interactive(self):
     server_address = 'http://%s:%s' % (self.host, self.port)
