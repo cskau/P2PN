@@ -24,15 +24,15 @@ done
 
 # wait for seed peer to come up before connecting to them
 sleep 1
-
-for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
-  sleep 1
-  echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
-  ADRESSES=$ADRESSES"\"http://localhost:$c\""
-  sleep 5
-  echo "test http://localhost:$PORT" | ./discover.py $PORT localhost $START$ADRESSES$END --test &
-  ADRESSES=$ADRESSES","
-done
+#
+#for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
+#  sleep 1
+#  echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
+#  ADRESSES=$ADRESSES"\"http://localhost:$c\""
+#  sleep 5
+#  echo "test http://localhost:$PORT" | ./discover.py $PORT localhost $START$ADRESSES$END --test &
+#  ADRESSES=$ADRESSES","
+#done
 
 # wait for peers to come up before connecting to them
 sleep 1
@@ -40,7 +40,6 @@ sleep 1
 # start interactive
 ./discover.py --interactive $PORT
 
-./discover.py --interactive 8004
 
 # kill all spawned processes
 kill `jobs -p`
