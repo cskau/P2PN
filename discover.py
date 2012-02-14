@@ -130,13 +130,13 @@ class Discover():
               sys.stdout = open(argv[index-1], 'w')
               index = index - 2
             #remember to print our own neighbours
-            neighbours_neighbours = {self.port: self.neighbours}
+            neighbours = {self: self.neighbours}
             for peer in argv[1:index]:
               self.server = xmlrpclib.Server(server_address % (self.host, peer))
-              neighbours_neighbours[peer] = self.server.nlist()
+              neighbours[peer] = self.server.nlist()
             print 'graph network {'
             
-            for k,v in neighbours_neighbours.iteritems():
+            for k,v in neighbours.iteritems():
               for neighbour in v:
                 print '"%s" -- "%s";' % (k, neighbour)
             print '}'
@@ -156,7 +156,7 @@ class TestDicovery():
     known_address = 'http://%s:%s' % (host, port)
     server = xmlrpclib.Server(known_address)
     actual_list = timeout_and_retry(server.plist)
-    if(list == actualList):
+    if(list == actual_list):
       print 'Test succeded with discovery of %s peer(s)' % (len(list)) 
     else:
       print 'Test didn\'t succed Expected list: %s actual list: %s' %(list , actual_list)
