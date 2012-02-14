@@ -77,6 +77,9 @@ class Discover():
   def plist(self):
     return self.peers
   
+  def nlist(self):
+    return self.neighbours
+
   def serve(self, host = None, port = None):
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
@@ -86,6 +89,7 @@ class Discover():
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
     self.server.register_function(self.pong, "pong")
+    self.server.register_function(self.nlist, "nlist")
     print 'Serving on: %s' % self.me
     # instead of serve_forever, we stop to check our action queue every loop
     while True:
@@ -108,16 +112,38 @@ class Discover():
           self.action_queue = self.action_queue[1:]
 
   def interactive(self):
-    server_address = 'http://%s:%s' % (self.host, self.port)
-    self.server = xmlrpclib.Server(server_address)
-    print 'Connected to: %s' % server_address
+    server_address = 'http://%s:%s'
+    print 'Connected to: %s' % server_address % (self.host, self.port)
     while True:
       try:
         user_input = raw_input('> ')
         if user_input[:len('hello')] == 'hello':
+          self.server = xmlrpclib.Server(server_address % (self.host, self.port))
           self.server.hello(user_input[len('hello') + 1:])
-        elif user_input == 'plist':
+        elif 'plist' in user_input:
+          self.server = xmlrpclib.Server(server_address % (self.host, self.port))
           print self.server.plist()
+        elif 'nlist' in user_input:
+            argv = user_input.split()
+            index = len(argv)
+            std_out = sys.stdout
+            #either we should print to std.out or a file stream
+            if "-o" in argv:
+              sys.stdout = open(argv[index-1], 'w')
+              index = index - 2
+            #remember to print our own neighbours
+            neighbours = {self: self.neighbours}
+            for peer in argv[1:index]:
+              self.server = xmlrpclib.Server(server_address % (self.host, peer))
+              neighbours[peer] = self.server.nlist()
+            print 'graph network {'
+            
+            for k,v in neighbours.iteritems():
+              for neighbour in v:
+                print '"%s" -- "%s";' % (k, neighbour)
+            print '}'
+                
+            sys.stdout = std_out
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
@@ -140,9 +166,8 @@ class TestDicovery():
         if(expected_set == actual_set):
           print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(actual_set)) 
         else:
-          print 'Test didn\'t succeed Expected set: %s actual list: %s' %(list , actual_set)
+          print 'Test didn\'t succeed Expected set: %s actual set: %s' %(expected_set , actual_set)
         break
-
 
  #################################### Main ####################################
 

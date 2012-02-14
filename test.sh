@@ -38,13 +38,14 @@ echo "Testing nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   ADRESSES=`python -c "print ','.join([('\"http://localhost:%i\"' % i) for i in range($(($PORT_FROM - 1)), $(($PORT_TO + 1))) if i != $c])"`
   ./discover.py --test $c localhost $START$ADRESSES$END
+
 done
 
 # wait for peers to come up before connecting to them
 sleep 1
 
 # start interactive
-#./discover.py --interactive $PORT
+./discover.py --interactive $PORT
 
 #./discover.py --interactive 8004
 
