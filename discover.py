@@ -25,11 +25,17 @@ import random
 import threading
 import time
 
+
+
 def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
+  def inf_gen():
+    while True:
+      yield -1
+  retries_range = range(retries) if not retries is None else inf_gen
   socket.setdefaulttimeout(timeout)
-  for i in range(retries):
+  for i in retries_range:
     try:
       res = lmbd()
     except xmlrpclib.Fault:
@@ -38,6 +44,7 @@ def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
       socket.setdefaulttimeout(None)
       return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
+
 
 class Neighbour():
   def __init__(self, name, capacity):
@@ -92,14 +99,14 @@ class Discover(threading.Thread):
       self.peers.append(who)
       self.action_queue.append(('neighbour?', who))
     return True
-  
+
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
     timeout_and_retry(
-        lambda:(server.ping('http://%s:%s' % (self.host, self.port))))
+        lambda: server.ping('http://%s:%s' % (self.host, self.port)))
     return True
-  
+
   def plist(self):
     print 'plist'
     return self.peers
@@ -118,16 +125,18 @@ class Discover(threading.Thread):
             self.peers.append(who)
             server = xmlrpclib.Server(who)
             timeout_and_retry(
-                              lambda:server.pong('http://%s:%s' % (self.host, self.port)))
+                lambda: server.pong('http://%s:%s' % (self.host, self.port)))
             for peer in self.peers:
               if peer != self.me and peer != who:
                 server = xmlrpclib.Server(peer)
-                timeout_and_retry(lambda:server.ping(who))
+                timeout_and_retry(lambda: server.ping(who))
           elif action[0] == 'neighbour?':
             who = action[1]
             server = xmlrpclib.Server(who)
-            answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(lambda:server.neighbour_q(
-                                                  'http://%s:%s' % (self.host, self.port),self.capacity))
+            answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(
+                lambda: server.neighbour_q(
+                    'http://%s:%s' % (self.host, self.port),
+                    self.capacity))
             if answer_yn:
               self.neighbours.append(
                                      Neighbour(neighbour_name, neighbour_capacity))
@@ -152,18 +161,54 @@ class Discover(threading.Thread):
     print 'Serving on: %s' % self.me
     self.server.serve_forever()
 
+
+class Client():
+  host = ''
+  port = None
+  server_address = None
+
+  def __init__(self, host, port):
+    self.host = host
+    self.port = port
+    self.server_address = 'http://%s:%s' % (self.host, self.port)
+
+  def hello(self, who):
+    server = xmlrpclib.Server(self.server_address)
+    timeout_and_retry(lambda: server.hello(who))
+
+  def plist(self):
+    server = xmlrpclib.Server(self.server_address)
+    print timeout_and_retry(lambda: server.plist())
+
+  def nlist(self, output_stream, given_peers):
+    #remember to print our own neighbours
+    server = xmlrpclib.Server(self.server_address)
+    timeout_and_retry(lambda: server.plist())
+    name = str(timeout_and_retry(lambda: server.as_neighbour()))
+    neighbours = timeout_and_retry(lambda: server.nlist())
+    nodes = {name: neighbours}
+    for peer in given_peers:
+      server = xmlrpclib.Server(self.server_address)
+      peer_id = str(timeout_and_retry(lambda: server.as_neighbour()))
+      nodes[peer_id] = timeout_and_retry(lambda: server.nlist())
+
+    # Print graphviz
+    print >> output_stream, 'graph network {'
+    for peer in nodes:
+      for neighbour in nodes[peer]:
+        print >> output_stream, '"%s" -- "%s";' % (peer, neighbour)
+    print >> output_stream, '}'
+
   def interactive(self):
-    server_address = 'http://%s:%s'
-    print 'Connected to: %s' % server_address % (self.host, self.port)
+    print 'Connected to: %s' % self.server_address
     while True:
       try:
         user_input = raw_input('> ')
         if user_input[:len('hello')] == 'hello':
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          timeout_and_retry(lambda:server.hello(user_input[len('hello') + 1:]))
+          who = user_input[len('hello') + 1:]
+          self.hello(who)
         elif 'plist' in user_input:
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          print timeout_and_retry(lambda:server.plist())
+          self.plist()
         elif 'nlist' in user_input:
           args = user_input.split()
           output_stream = sys.stdout
@@ -175,21 +220,12 @@ class Discover(threading.Thread):
           given_peers = []
           if len(args) > 1:
             given_peers = args[1:]
-          #remember to print our own neighbours
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          timeout_and_retry(lambda:server.plist())
-          name = str(timeout_and_retry(lambda:server.as_neighbour()))
-          neighbours = timeout_and_retry(lambda:server.nlist())
-          nodes = {name: neighbours}
-          for peer in given_peers:
-            server = xmlrpclib.Server(server_address % (self.host, peer))
-            peer_id = str(timeout_and_retry(lambda:server.as_neighbour()))
-            nodes[peer_id] = timeout_and_retry(lambda:server.nlist())
-          print >> output_stream, 'graph network {'
-          for peer in nodes:
-            for neighbour in nodes[peer]:
-              print >> output_stream, '"%s" -- "%s";' % (peer, neighbour)
-          print >> output_stream, '}'
+          self.nlist(output_stream, given_peers)
+        elif 'help' in user_input:
+          print 'Available commands:'
+          print ' hello PORT'
+          print ' plist'
+          print ' nlist'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
@@ -206,14 +242,18 @@ class TestDicovery():
     while True:
       try:
         server = xmlrpclib.Server(known_address)
-        actual_set = set(timeout_and_retry(lambda:server.plist()))
+        actual_set = set(timeout_and_retry(lambda: server.plist()))
       except:
         continue
       finally:
         if(expected_set == actual_set):
-          print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(actual_set)) 
+          print (
+              'Test succeeded for %s with discovery of %s peer(s)' %
+              (known_address, len(actual_set)))
         else:
-          print 'Test didn\'t succeed Expected set: %s actual set: %s' %(expected_set , actual_set)
+          print (
+              'Test didn\'t succeed Expected set: %s actual set: %s' %
+              (expected_set , actual_set))
         break
 
  #################################### Main ####################################
@@ -225,14 +265,11 @@ if __name__ == '__main__':
     expected_set = set(json.loads(sys.argv[4]) if len(sys.argv) > 4 else '')
     TestDicovery().testDiscovery(host, port, expected_set)
   else:
-    name = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-  
-    peer = Discover(name, 'localhost', port, cap)
-  
+    capacity = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     if '--interactive' in sys.argv[1:]:
-     peer.interactive()
+      client = Client('localhost', port)
+      client.interactive()
     else:
      threading.Thread(target = peer.serve).start()
      threading.Thread(target = peer.send_messages).start()
