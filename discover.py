@@ -22,9 +22,10 @@ import SimpleXMLRPCServer
 import socket
 import json
 import random
+import threading
+import time
 
-
-def timeout_and_retry(lmbd, timeout = 1, retries = 10):
+def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   socket.setdefaulttimeout(timeout)
@@ -46,7 +47,7 @@ class Neighbour():
   def __str__(self):
     return '%s(%s)' % (self.name, self.capacity)
 
-class Discover():
+class Discover(threading.Thread):
 
   name = None
   capacity = 0
@@ -106,23 +107,9 @@ class Discover():
   def nlist(self):
     print 'nlist'
     return self.neighbours
-
-  def serve(self, host = None, port = None):
-    _host = host if not host is None else self.host
-    _port = port if not port is None else self.port
-    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
-    self.server.timeout = 1
-    self.server.register_function(self.hello, "hello")
-    self.server.register_function(self.plist, "plist")
-    self.server.register_function(self.ping, "ping")
-    self.server.register_function(self.pong, "pong")
-    self.server.register_function(self.nlist, "nlist")
-    self.server.register_function(self.neighbour_q, "neighbour_q")
-    self.server.register_function(self.as_neighbour, "as_neighbour")
-    print 'Serving on: %s' % self.me
-    # instead of serve_forever, we stop to check our action queue every loop
+  
+  def send_messages(self):
     while True:
-      self.server.handle_request()
       if self.action_queue:
         try:
           action = self.action_queue[0]
@@ -131,7 +118,7 @@ class Discover():
             self.peers.append(who)
             server = xmlrpclib.Server(who)
             timeout_and_retry(
-                lambda:server.pong('http://%s:%s' % (self.host, self.port)))
+                              lambda:server.pong('http://%s:%s' % (self.host, self.port)))
             for peer in self.peers:
               if peer != self.me and peer != who:
                 server = xmlrpclib.Server(peer)
@@ -139,17 +126,31 @@ class Discover():
           elif action[0] == 'neighbour?':
             who = action[1]
             server = xmlrpclib.Server(who)
-            answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(
-                lambda:server.neighbour_q(
-                    'http://%s:%s' % (self.host, self.port),
-                    self.capacity))
+            answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(lambda:server.neighbour_q(
+                                                  'http://%s:%s' % (self.host, self.port),self.capacity))
             if answer_yn:
               self.neighbours.append(
-                  Neighbour(neighbour_name, neighbour_capacity))
+                                     Neighbour(neighbour_name, neighbour_capacity))
         except:
           continue
         finally:
           self.action_queue = self.action_queue[1:]
+      else:
+        time.sleep(1)
+
+  def serve(self, host = None, port = None):
+    _host = host if not host is None else self.host
+    _port = port if not port is None else self.port
+    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+    self.server.register_function(self.hello, "hello")
+    self.server.register_function(self.plist, "plist")
+    self.server.register_function(self.ping, "ping")
+    self.server.register_function(self.pong, "pong")
+    self.server.register_function(self.nlist, "nlist")
+    self.server.register_function(self.neighbour_q, "neighbour_q")
+    self.server.register_function(self.as_neighbour, "as_neighbour")
+    print 'Serving on: %s' % self.me
+    self.server.serve_forever()
 
   def interactive(self):
     server_address = 'http://%s:%s'
@@ -231,6 +232,7 @@ if __name__ == '__main__':
     peer = Discover(name, 'localhost', port, cap)
   
     if '--interactive' in sys.argv[1:]:
-      peer.interactive()
+     peer.interactive()
     else:
-      peer.serve()
+     threading.Thread(target = peer.serve).start()
+     threading.Thread(target = peer.send_messages).start()
