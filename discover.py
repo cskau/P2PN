@@ -142,12 +142,12 @@ class Discover():
             for peer in self.peers:
               if peer != self.me and peer != who:
                 server = xmlrpclib.Server(peer)
-                timeout_and_retry(lambda:server.ping(who))
+                timeout_and_retry(lambda: server.ping(who))
           elif action[0] == 'neighbour?':
             who = action[1]
             server = xmlrpclib.Server(who)
             answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(
-                lambda:server.neighbour_q(
+                lambda: server.neighbour_q(
                     'http://%s:%s' % (self.host, self.port),
                     self.capacity))
             if answer_yn:
@@ -162,49 +162,62 @@ class Discover():
 class Client():
   host = ''
   port = None
+  server_address = None
 
   def __init__(self, host, port):
     self.host = host
     self.port = port
+    self.server_address = 'http://%s:%s' % (self.host, self.port)
+
+  def hello(self):
+    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
+    timeout_and_retry(lambda: server.hello(user_input[len('hello') + 1:]))
+
+  def plist(self):
+    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
+    print timeout_and_retry(lambda: server.plist())
+
+  def nlist(self):
+    args = user_input.split()
+    output_stream = sys.stdout
+    #either we should print to std.out or a file stream
+    if len(args) > 1 and "-o" == args[-2]:
+      filename = args[-1]
+      output_stream = open(filename, 'w')
+      args = args[:-2]
+    given_peers = []
+    if len(args) > 1:
+      given_peers = args[1:]
+
+    #remember to print our own neighbours
+    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
+    timeout_and_retry(lambda: server.plist())
+    name = str(timeout_and_retry(lambda: server.as_neighbour()))
+    neighbours = timeout_and_retry(lambda: server.nlist())
+    nodes = {name: neighbours}
+    for peer in given_peers:
+      server = xmlrpclib.Server(self.server_address % (self.host, peer))
+      peer_id = str(timeout_and_retry(lambda: server.as_neighbour()))
+      nodes[peer_id] = timeout_and_retry(lambda: server.nlist())
+
+    # Print graphviz
+    print >> output_stream, 'graph network {'
+    for peer in nodes:
+      for neighbour in nodes[peer]:
+        print >> output_stream, '"%s" -- "%s";' % (peer, neighbour)
+    print >> output_stream, '}'
 
   def interactive(self):
-    server_address = 'http://%s:%s'
-    print 'Connected to: %s' % server_address % (self.host, self.port)
+    print 'Connected to: %s' % self.server_address
     while True:
       try:
         user_input = raw_input('> ')
         if user_input[:len('hello')] == 'hello':
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          timeout_and_retry(lambda:server.hello(user_input[len('hello') + 1:]))
+          self.hello()
         elif 'plist' in user_input:
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          print timeout_and_retry(lambda:server.plist())
+          self.plist()
         elif 'nlist' in user_input:
-          args = user_input.split()
-          output_stream = sys.stdout
-          #either we should print to std.out or a file stream
-          if len(args) > 1 and "-o" == args[-2]:
-            filename = args[-1]
-            output_stream = open(filename, 'w')
-            args = args[:-2]
-          given_peers = []
-          if len(args) > 1:
-            given_peers = args[1:]
-          #remember to print our own neighbours
-          server = xmlrpclib.Server(server_address % (self.host, self.port))
-          timeout_and_retry(lambda:server.plist())
-          name = str(timeout_and_retry(lambda:server.as_neighbour()))
-          neighbours = timeout_and_retry(lambda:server.nlist())
-          nodes = {name: neighbours}
-          for peer in given_peers:
-            server = xmlrpclib.Server(server_address % (self.host, peer))
-            peer_id = str(timeout_and_retry(lambda:server.as_neighbour()))
-            nodes[peer_id] = timeout_and_retry(lambda:server.nlist())
-          print >> output_stream, 'graph network {'
-          for peer in nodes:
-            for neighbour in nodes[peer]:
-              print >> output_stream, '"%s" -- "%s";' % (peer, neighbour)
-          print >> output_stream, '}'
+          self.nlist()
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
@@ -221,7 +234,7 @@ class TestDicovery():
     while True:
       try:
         server = xmlrpclib.Server(known_address)
-        actual_set = set(timeout_and_retry(lambda:server.plist()))
+        actual_set = set(timeout_and_retry(lambda: server.plist()))
       except:
         continue
       finally:
