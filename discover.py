@@ -138,7 +138,7 @@ class Discover():
             self.peers.append(who)
             server = xmlrpclib.Server(who)
             timeout_and_retry(
-                lambda:server.pong('http://%s:%s' % (self.host, self.port)))
+                lambda: server.pong('http://%s:%s' % (self.host, self.port)))
             for peer in self.peers:
               if peer != self.me and peer != who:
                 server = xmlrpclib.Server(peer)
@@ -218,6 +218,11 @@ class Client():
           if len(args) > 1:
             given_peers = args[1:]
           self.nlist(output_stream, given_peers)
+        elif 'help' in user_input:
+          print 'Available commands:'
+          print ' hello PORT'
+          print ' plist'
+          print ' nlist'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
