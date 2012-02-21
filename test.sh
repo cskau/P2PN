@@ -30,7 +30,7 @@ sleep 1
 echo "Connecting nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
-  sleep 1
+  #sleep 1
 done
 
 sleep 10
