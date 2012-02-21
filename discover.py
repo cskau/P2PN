@@ -26,7 +26,7 @@ import threading
 import time
 
 
-def timeout_and_retry(lmbd, timeout = None, retries = 4):
+def timeout_and_retry(lmbd, timeout = None, retries = 10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   def inf_gen():
@@ -37,13 +37,15 @@ def timeout_and_retry(lmbd, timeout = None, retries = 4):
   for i in retries_range:
     try:
       res = lmbd()
-    except xmlrpclib.Fault:
-      pass
+    except xmlrpclib.Fault as f:
+      print f
+      if (f.faultCode != 1):
+        pass
     else:
       socket.setdefaulttimeout(None)
       return res
   socket.setdefaulttimeout(None)
-  raise xmlrpclib.Fault('Failed after %i retries.' % retries);
+  raise xmlrpclib.Fault('', 'Failed after %i retries.' % retries);
 
 
 class Neighbour():
@@ -56,7 +58,7 @@ class Neighbour():
 
 
 class Discover(threading.Thread):
-
+  """A peer-to-peer node"""
   name = None
   capacity = 0
   neighbours = []
@@ -75,19 +77,19 @@ class Discover(threading.Thread):
     self.me = 'http://%s:%s' % (self.host, self.port)
 
   def _accept_neighbour(self, c0):
+    """Neighbour request decision function"""
     if len(self.neighbours) >= self.capacity:
       return False
-    return random.choice(True, False)
+    return random.choice((True, False))
 
   def as_neighbour(self):
     return Neighbour(self.name, self.capacity)
 
   def neighbour_q(self, who, capacity):
     print 'neighbour_q: %s %s' % (who, capacity)
-    answer = _accept_neighbour(capacity)
+    answer = self._accept_neighbour(capacity)
     if (answer == True):
-      self.neighbours.append(
-          Neighbour(neighbour_name, neighbour_capacity))
+      self.neighbours.append(Neighbour(who, capacity))
     return (answer, self.name, self.capacity)
 
   def ping(self, who = None):
@@ -123,6 +125,7 @@ class Discover(threading.Thread):
     return self.neighbours
   
   def do_actions(self):
+    # TODO(cskau): add automatic idle, accounting actions
     while True:
       if self.action_queue:
         try:
@@ -191,7 +194,6 @@ class Client():
     timeout_and_retry(lambda: server.plist())
     name = str(timeout_and_retry(lambda: server.as_neighbour()))
     neighbours = timeout_and_retry(lambda: server.nlist())
-    print neighbours
     nodes = {name: neighbours}
     for peer in given_peers:
       server = xmlrpclib.Server(self.server_address)
@@ -221,8 +223,9 @@ class Client():
           #either we should print to std.out or a file stream
           if len(args) > 1 and "-o" == args[-2]:
             filename = args[-1]
-            output_stream = open(filename, 'w')
+            output_stream = open(filename, 'w', 0)
             args = args[:-2]
+            print filename
           given_peers = []
           if len(args) > 1:
             given_peers = args[1:]
