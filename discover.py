@@ -38,6 +38,7 @@ def timeout_and_retry(lmbd, timeout = 1, retries = 10):
       return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
+
 class Neighbour():
   def __init__(self, name, capacity):
     self.name = name
@@ -45,6 +46,7 @@ class Neighbour():
 
   def __str__(self):
     return '%s(%s)' % (self.name, self.capacity)
+
 
 class Discover():
 
