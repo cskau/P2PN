@@ -22,7 +22,8 @@ import SimpleXMLRPCServer
 import socket
 import json
 
-def timeout_and_retry(lmbd, timeout = 1, retries = 10):
+
+def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   socket.setdefaulttimeout(timeout)
@@ -35,6 +36,7 @@ def timeout_and_retry(lmbd, timeout = 1, retries = 10):
       socket.setdefaulttimeout(None)
       return res
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
+
 
 class Discover():
 
@@ -111,6 +113,15 @@ class Discover():
         finally:
           self.action_queue = self.action_queue[1:]
 
+
+class Client():
+  host = ''
+  port = None
+
+  def __init__(self, host, port):
+    self.host = host
+    self.port = port
+
   def interactive(self):
     server_address = 'http://%s:%s'
     print 'Connected to: %s' % server_address % (self.host, self.port)
@@ -156,6 +167,7 @@ class Discover():
 class TestDicovery():
   def testDiscovery(self, host = None, port = None, expected_set = None):
     known_address = 'http://%s:%s' % (host, port)
+    actual_set = None
     while True:
       try:
         server = xmlrpclib.Server(known_address)
@@ -178,13 +190,12 @@ if __name__ == '__main__':
     expected_set = set(json.loads(sys.argv[4]) if len(sys.argv) > 4 else '')
     TestDicovery().testDiscovery(host, port, expected_set)
   else:
-    name = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
     cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-  
-    peer = Discover(name, 'localhost', port, cap)
-  
     if '--interactive' in sys.argv[1:]:
-      peer.interactive()
+      client = Client('localhost', port)
+      client.interactive()
     else:
+      name = sys.argv[1]
+      peer = Discover(name, 'localhost', port, cap)
       peer.serve()
