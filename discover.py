@@ -103,7 +103,7 @@ class Discover():
     print 'hello'
     server = xmlrpclib.Server(known_address)
     timeout_and_retry(
-        lambda:(server.ping('http://%s:%s' % (self.host, self.port))))
+        lambda: server.ping('http://%s:%s' % (self.host, self.port)))
     return True
 
   def plist(self):
@@ -169,34 +169,23 @@ class Client():
     self.port = port
     self.server_address = 'http://%s:%s' % (self.host, self.port)
 
-  def hello(self):
-    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
-    timeout_and_retry(lambda: server.hello(user_input[len('hello') + 1:]))
+  def hello(self, who):
+    server = xmlrpclib.Server(self.server_address)
+    timeout_and_retry(lambda: server.hello(who))
 
   def plist(self):
-    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
+    server = xmlrpclib.Server(self.server_address)
     print timeout_and_retry(lambda: server.plist())
 
-  def nlist(self):
-    args = user_input.split()
-    output_stream = sys.stdout
-    #either we should print to std.out or a file stream
-    if len(args) > 1 and "-o" == args[-2]:
-      filename = args[-1]
-      output_stream = open(filename, 'w')
-      args = args[:-2]
-    given_peers = []
-    if len(args) > 1:
-      given_peers = args[1:]
-
+  def nlist(self, output_stream, given_peers):
     #remember to print our own neighbours
-    server = xmlrpclib.Server(self.server_address % (self.host, self.port))
+    server = xmlrpclib.Server(self.server_address)
     timeout_and_retry(lambda: server.plist())
     name = str(timeout_and_retry(lambda: server.as_neighbour()))
     neighbours = timeout_and_retry(lambda: server.nlist())
     nodes = {name: neighbours}
     for peer in given_peers:
-      server = xmlrpclib.Server(self.server_address % (self.host, peer))
+      server = xmlrpclib.Server(self.server_address)
       peer_id = str(timeout_and_retry(lambda: server.as_neighbour()))
       nodes[peer_id] = timeout_and_retry(lambda: server.nlist())
 
@@ -213,11 +202,22 @@ class Client():
       try:
         user_input = raw_input('> ')
         if user_input[:len('hello')] == 'hello':
-          self.hello()
+          who = user_input[len('hello') + 1:]
+          self.hello(who)
         elif 'plist' in user_input:
           self.plist()
         elif 'nlist' in user_input:
-          self.nlist()
+          args = user_input.split()
+          output_stream = sys.stdout
+          #either we should print to std.out or a file stream
+          if len(args) > 1 and "-o" == args[-2]:
+            filename = args[-1]
+            output_stream = open(filename, 'w')
+            args = args[:-2]
+          given_peers = []
+          if len(args) > 1:
+            given_peers = args[1:]
+          self.nlist(output_stream, given_peers)
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
