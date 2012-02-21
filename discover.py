@@ -226,11 +226,13 @@ class TestDicovery():
         continue
       finally:
         if(expected_set == actual_set):
-          print 'Test succeeded for %s with discovery of %s peer(s)' %
-              (known_address, len(actual_set)) 
+          print (
+              'Test succeeded for %s with discovery of %s peer(s)' %
+              (known_address, len(actual_set)))
         else:
-          print 'Test didn\'t succeed Expected set: %s actual set: %s' %
-              (expected_set , actual_set)
+          print (
+              'Test didn\'t succeed Expected set: %s actual set: %s' %
+              (expected_set , actual_set))
         break
 
  #################################### Main ####################################
