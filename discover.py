@@ -26,8 +26,12 @@ import json
 def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
+  def inf_gen():
+    while True:
+      yield -1
+  retries_range = range(retries) if not retries is None else inf_gen
   socket.setdefaulttimeout(timeout)
-  for i in range(retries):
+  for i in retries_range:
     try:
       res = lmbd()
     except xmlrpclib.Fault:
@@ -56,7 +60,7 @@ class Discover():
     self.port = port
     self.capacity = cap
     self.me = 'http://%s:%s' % (self.host, self.port)
-
+  
   def ping(self, who = None):
     print 'ping: %s' % who
     if not who is None and not who in self.peers and who != self.me:
