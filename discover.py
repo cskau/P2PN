@@ -44,8 +44,6 @@ def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   raise xmlrpclib.Fault('Failed after %i retries.' % retries);
 
 
-<<<<<<< HEAD
-=======
 class Neighbour():
   def __init__(self, name, capacity):
     self.name = name
@@ -55,7 +53,6 @@ class Neighbour():
     return '%s(%s)' % (self.name, self.capacity)
 
 
->>>>>>> neighbour
 class Discover():
 
   name = None
@@ -74,9 +71,6 @@ class Discover():
     self.port = port
     self.capacity = capacity
     self.me = 'http://%s:%s' % (self.host, self.port)
-<<<<<<< HEAD
-  
-=======
 
   def _accept_neighbour(self, c0):
     if len(self.neighbours) >= self.capacity:
@@ -92,7 +86,6 @@ class Discover():
     answer = _accept_neighbour(capacity)
     return (answer, self.name, self.capacity)
 
->>>>>>> neighbour
   def ping(self, who = None):
     print 'ping: %s' % who
     if not who is None and not who in self.peers and who != self.me:
@@ -105,14 +98,14 @@ class Discover():
       self.peers.append(who)
       self.action_queue.append(('neighbour?', who))
     return True
-  
+
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
     timeout_and_retry(
         lambda:(server.ping('http://%s:%s' % (self.host, self.port))))
     return True
-  
+
   def plist(self):
     print 'plist'
     return self.peers
@@ -233,9 +226,11 @@ class TestDicovery():
         continue
       finally:
         if(expected_set == actual_set):
-          print 'Test succeeded for %s with discovery of %s peer(s)' % (known_address, len(actual_set)) 
+          print 'Test succeeded for %s with discovery of %s peer(s)' %
+              (known_address, len(actual_set)) 
         else:
-          print 'Test didn\'t succeed Expected set: %s actual set: %s' %(expected_set , actual_set)
+          print 'Test didn\'t succeed Expected set: %s actual set: %s' %
+              (expected_set , actual_set)
         break
 
  #################################### Main ####################################
@@ -248,11 +243,11 @@ if __name__ == '__main__':
     TestDicovery().testDiscovery(host, port, expected_set)
   else:
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    cap = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    capacity = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     if '--interactive' in sys.argv[1:]:
       client = Client('localhost', port)
       client.interactive()
     else:
       name = sys.argv[1]
-      peer = Discover(name, 'localhost', port, cap)
+      peer = Discover(name, 'localhost', port, capacity)
       peer.serve()
