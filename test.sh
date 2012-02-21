@@ -22,7 +22,9 @@ getRandomInRange() {
 }
 
 
-mkdir ./logs
+mkdir -p ./logs
+mkdir -p ./dots
+
 
 echo "Setting up root.."
 # setup seed peer in the background
@@ -55,8 +57,9 @@ done
 sleep 1
 
 echo "More dots!!"
+echo "nlist -o ./dots/g$PORT.dot" | ./discover.py --interactive $PORT &> /dev/null
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
-  echo "nlist -o ./dots/g$PORT.dot" | ./discover.py --interactive $c &> /dev/null
+  echo "nlist -o ./dots/g$c.dot" | ./discover.py --interactive $c &> /dev/null
 done
 dot -O -Tpng ./dots/*.dot
 
