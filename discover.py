@@ -53,7 +53,7 @@ class Neighbour():
     self.name = name
     self.capacity = capacity
 
-  def __str__(self):
+  def __repr__(self):
     return '%s(%s)' % (self.name, self.capacity)
 
 
@@ -204,7 +204,9 @@ class Client():
     print >> output_stream, 'graph network {'
     for peer in nodes:
       for neighbour in nodes[peer]:
-        print >> output_stream, '"%s" -- "%s";' % (peer, neighbour)
+        print >> output_stream, '"P%s(%s)" -- "%s(%s)";' % (eval(peer)['name'], eval(peer)['capacity'],
+                                                           neighbour['name'].replace('http://localhost:',''), 
+                                                           neighbour['capacity'])
     print >> output_stream, '}'
 
   def interactive(self):

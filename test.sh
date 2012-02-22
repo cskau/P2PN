@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-NODES=10
+NODES=30
 PORT=8000
-CAP=10
+CAP=15
 
 START="["
 END="]"
@@ -10,7 +10,7 @@ ADRESSES=""
 
 # range from which to draw the random neighbour capacities
 CAPACITY_FROM=1
-CAPACITY_TO=10
+CAPACITY_TO=30
 
 # dynamic vars
 PORT_FROM=$(($PORT + 1))
@@ -29,12 +29,12 @@ mkdir -p ./dots
 echo "Setting up root.."
 # setup seed peer in the background
 CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
-python -u ./discover.py p$PORT $PORT $CAPACITY &> ./logs/$PORT.log &
+python -u ./discover.py $PORT $PORT $CAPACITY &> ./logs/$PORT.log &
 
 echo "Setting up $NODES nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
-  python -u ./discover.py p$c $c $CAPACITY &> ./logs/$c.log & # start in background
+  python -u ./discover.py $c $c $CAPACITY &> ./logs/$c.log & # start in background
 done
 
 
@@ -68,10 +68,7 @@ sleep 1
 # start interactive
 ./discover.py --interactive $PORT
 
-#./discover.py --interactive 8004
-
 bash
-
 
 # kill all spawned processes
 kill `jobs -p`
