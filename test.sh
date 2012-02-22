@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-NODES=30
+NODES=10
 PORT=8000
-CAP=15
 
 START="["
 END="]"
@@ -10,7 +9,7 @@ ADRESSES=""
 
 # range from which to draw the random neighbour capacities
 CAPACITY_FROM=1
-CAPACITY_TO=30
+CAPACITY_TO=20
 
 # dynamic vars
 PORT_FROM=$(($PORT + 1))
@@ -29,12 +28,12 @@ mkdir -p ./dots
 echo "Setting up root.."
 # setup seed peer in the background
 CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
-python -u ./discover.py $PORT $PORT $CAPACITY &> ./logs/$PORT.log &
+python -u ./discover.py p$PORT $PORT $CAPACITY &> ./logs/$PORT.log &
 
 echo "Setting up $NODES nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
-  python -u ./discover.py $c $c $CAPACITY &> ./logs/$c.log & # start in background
+  python -u ./discover.py p$c $c $CAPACITY &> ./logs/$c.log & # start in background
 done
 
 
@@ -48,11 +47,12 @@ done
 
 sleep 10
 
-echo "Testing nodes.."
-for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
-  ADRESSES=`python -c "print ','.join([('\"http://localhost:%i\"' % i) for i in range($(($PORT_FROM - 1)), $(($PORT_TO + 1))) if i != $c])"`
-  ./discover.py --test $c localhost $START$ADRESSES$END
-done
+
+#echo "Testing nodes.."
+#for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
+#  ADRESSES=`python -c "print ','.join([('\"http://localhost:%i\"' % i) for i in range($(($PORT_FROM - 1)), $(($PORT_TO + 1))) if i != $c])"`
+#  ./discover.py --test $c localhost $START$ADRESSES$END
+#done
 
 sleep 1
 

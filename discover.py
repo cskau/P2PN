@@ -48,10 +48,20 @@ def timeout_and_retry(lmbd, timeout = None, retries = 10):
   raise xmlrpclib.Fault('', 'Failed after %i retries.' % retries);
 
 
-class Neighbour():
-  def __init__(self, name, capacity):
+class Peer():
+  def __init__(
+      self,
+      name = None, host = None, port = None, capacity = None,
+      from_dict = None):
     self.name = name
+    self.host = host
+    self.port = port
     self.capacity = capacity
+    if not from_dict is None:
+      self.__dict__.update(from_dict)
+
+  def uri(self):
+    return 'http://%s:%s' % (self.host, self.port)
 
   def __repr__(self):
     return '%s(%s)' % (self.name, self.capacity)
@@ -59,66 +69,61 @@ class Neighbour():
 
 class Discover(threading.Thread):
   """A peer-to-peer node"""
-  name = None
-  capacity = 0
+  peer_info = None
   neighbours = []
-  host = ''
-  port = None
-  peers = []
-  me = None
+  peers = {}
 
   action_queue = []
 
   def __init__(self, name, host, port, capacity):
-    self.name = name
-    self.host = host
-    self.port = port
-    self.capacity = capacity
-    self.me = 'http://%s:%s' % (self.host, self.port)
+    self.peer_info = Peer(name, host, port, capacity)
+
+  def who(self):
+    return self.peer_info
 
   def _accept_neighbour(self, c0):
     """Neighbour request decision function"""
-    if len(self.neighbours) >= self.capacity:
+    if len(self.neighbours) >= self.peer_info.capacity:
       return False
     return random.choice((True, False))
 
-  def as_neighbour(self):
-    return Neighbour(self.name, self.capacity)
-
-  def neighbour_q(self, who, capacity):
-    print 'neighbour_q: %s %s' % (who, capacity)
+  def neighbour_q(self, who_info_dict):
+    who = Peer(from_dict = who_info_dict)
+    print 'neighbour_q: %s' % (who)
     answer = self._accept_neighbour(capacity)
     if (answer == True):
-      self.neighbours.append(Neighbour(who, capacity))
-    return (answer, self.name, self.capacity)
+      self.neighbours.append(who)
+    return (answer, self.peer_info)
 
-  def ping(self, who = None):
+  def ping(self, who):
     print 'ping: %s' % who
-    if not who is None and not who in self.peers and who != self.me:
-      self.action_queue.append(('ping', who))
+    if not who is None and not who['name'] in self.peers and who != self.peer_info:
+      peer = Peer(from_dict = who)
+      self.action_queue.append(('ping', peer))
       # We should add them right away to prevent complete flodding
       #  while we are handling the pong.
       # Then we should just not assume too much about our peer list.
       # Perhaps sanitize/check the list once in a while..
-      self.peers.append(who)
+      self.peers[peer.name] = peer
     return True
   
   def pong(self, who = None):
     print 'pong %s' % who
-    if who != self.me:
-      self.peers.append(who)
-      self.action_queue.append(('neighbour?', who))
+    if who != self.peer_info:
+      peer = Peer(from_dict = who)
+      self.peers[peer.name] = peer
+      self.action_queue.append(('neighbour?', peer))
     return True
 
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
-    timeout_and_retry(lambda: server.ping(self.me))
+    timeout_and_retry(lambda: server.ping(self.peer_info))
     return True
 
   def plist(self):
     print 'plist'
-    return self.peers
+    return self.peers.values()
   
   def nlist(self):
     print 'nlist'
@@ -132,21 +137,20 @@ class Discover(threading.Thread):
           action = self.action_queue[0]
           if action[0] == 'ping':
             who = action[1]
-            server = xmlrpclib.Server(who)
-            timeout_and_retry(lambda: server.pong(self.me))
-            for peer in self.peers:
-              if peer != self.me and peer != who:
-                server = xmlrpclib.Server(peer)
+            server = xmlrpclib.Server(who.uri())
+            timeout_and_retry(lambda: server.pong(self.peer_info))
+            for peer in self.peers.values():
+              if peer != self.peer_info and peer != who:
+                server = xmlrpclib.Server(peer.uri())
                 timeout_and_retry(lambda: server.ping(who))
           elif action[0] == 'neighbour?':
             who = action[1]
-            server = xmlrpclib.Server(who)
-            answer_yn, neighbour_name, neighbour_capacity = timeout_and_retry(
-                lambda: server.neighbour_q(self.me, self.capacity))
+            server = xmlrpclib.Server(who.uri())
+            answer_yn, neighbour = timeout_and_retry(
+                lambda: server.neighbour_q(self.peer_info))
             print 'Friends %s ? %s' % (who, answer_yn)
             if answer_yn:
-              self.neighbours.append(
-                  Neighbour(neighbour_name, neighbour_capacity))
+              self.neighbours.append(neighbour)
         except xmlrpclib.Fault as f:
           print 'XMLRPC Fault: %s' % f
           continue
@@ -155,18 +159,17 @@ class Discover(threading.Thread):
       else:
         time.sleep(1)
 
-  def serve(self, host = None, port = None):
-    _host = host if not host is None else self.host
-    _port = port if not port is None else self.port
-    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
+  def serve(self):
+    self.server = SimpleXMLRPCServer.SimpleXMLRPCServer(
+        (self.peer_info.host, self.peer_info.port))
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
     self.server.register_function(self.pong, "pong")
     self.server.register_function(self.nlist, "nlist")
     self.server.register_function(self.neighbour_q, "neighbour_q")
-    self.server.register_function(self.as_neighbour, "as_neighbour")
-    print 'Serving on: %s' % self.me
+    self.server.register_function(self.who, "who")
+    print 'Serving on: %s' % self.peer_info.uri()
     self.server.serve_forever()
 
 
@@ -186,34 +189,40 @@ class Client():
 
   def plist(self):
     server = xmlrpclib.Server(self.server_address)
-    print timeout_and_retry(lambda: server.plist())
+    print [Peer(from_dict=p) for p in timeout_and_retry(lambda: server.plist())]
 
   def nlist(self, output_stream, given_peers):
     #remember to print our own neighbours
     server = xmlrpclib.Server(self.server_address)
-    timeout_and_retry(lambda: server.plist())
-    name = str(timeout_and_retry(lambda: server.as_neighbour()))
+    peer = Peer(from_dict = timeout_and_retry(lambda: server.who()))
     neighbours = timeout_and_retry(lambda: server.nlist())
-    nodes = {name: neighbours}
-    for peer in given_peers:
-      server = xmlrpclib.Server(self.server_address)
-      peer_id = str(timeout_and_retry(lambda: server.as_neighbour()))
-      nodes[peer_id] = timeout_and_retry(lambda: server.nlist())
+    peers = {peer.name: peer}
+    nodes = {peer.name: neighbours}
+
+    server_peers = dict([
+        (p['name'], Peer(from_dict = p))
+        for p in timeout_and_retry(lambda: server.plist())])
+    for peer_name in given_peers:
+      server = xmlrpclib.Server(server_peers[peer_name].uri())
+      peers[peer_name] = server_peers[peer_name]
+      nodes[peer_name] = timeout_and_retry(lambda: server.nlist())
 
     # Print graphviz
     print >> output_stream, 'graph network {'
-    for peer in nodes:
-      for neighbour in nodes[peer]:
-        print >> output_stream, '"P%s(%s)" -- "%s(%s)";' % (eval(peer)['name'], eval(peer)['capacity'],
-                                                           neighbour['name'].replace('http://localhost:',''), 
-                                                           neighbour['capacity'])
+    for peer_name in nodes:
+      for neighbour in nodes[peer_name]:
+        neighbour_info = Peer(from_dict = neighbour)
+        print >> output_stream, '"%s" -- "%s";' % (
+            peers[peer_name], neighbour_info)
     print >> output_stream, '}'
 
   def interactive(self):
     print 'Connected to: %s' % self.server_address
+    server = xmlrpclib.Server(self.server_address)
+    peer = Peer(from_dict = timeout_and_retry(lambda: server.who()))
     while True:
       try:
-        user_input = raw_input('> ')
+        user_input = raw_input('%s> ' % peer.name)
         if user_input[:len('hello')] == 'hello':
           who = user_input[len('hello') + 1:]
           self.hello(who)
