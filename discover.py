@@ -22,10 +22,11 @@ import SimpleXMLRPCServer
 import socket
 import json
 import random
+import threading
+import time
 
 
-
-def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
+def timeout_and_retry(lmbd, timeout = None, retries = 10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
   def inf_gen():
@@ -36,12 +37,15 @@ def timeout_and_retry(lmbd, timeout = 0.1, retries = 100):
   for i in retries_range:
     try:
       res = lmbd()
-    except xmlrpclib.Fault:
-      pass
-    finally:
+    except xmlrpclib.Fault as f:
+      print f
+      if (f.faultCode != 1):
+        pass
+    else:
       socket.setdefaulttimeout(None)
       return res
-  raise xmlrpclib.Fault('Failed after %i retries.' % retries);
+  socket.setdefaulttimeout(None)
+  raise xmlrpclib.Fault('', 'Failed after %i retries.' % retries);
 
 
 class Neighbour():
@@ -53,8 +57,8 @@ class Neighbour():
     return '%s(%s)' % (self.name, self.capacity)
 
 
-class Discover():
-
+class Discover(threading.Thread):
+  """A peer-to-peer node"""
   name = None
   capacity = 0
   neighbours = []
@@ -73,23 +77,30 @@ class Discover():
     self.me = 'http://%s:%s' % (self.host, self.port)
 
   def _accept_neighbour(self, c0):
+    """Neighbour request decision function"""
     if len(self.neighbours) >= self.capacity:
       return False
-    return random.choice(True, False)
+    return random.choice((True, False))
 
   def as_neighbour(self):
     return Neighbour(self.name, self.capacity)
 
   def neighbour_q(self, who, capacity):
     print 'neighbour_q: %s %s' % (who, capacity)
-    return (True, self.name, self.capacity)
-    answer = _accept_neighbour(capacity)
+    answer = self._accept_neighbour(capacity)
+    if (answer == True):
+      self.neighbours.append(Neighbour(who, capacity))
     return (answer, self.name, self.capacity)
 
   def ping(self, who = None):
     print 'ping: %s' % who
     if not who is None and not who in self.peers and who != self.me:
       self.action_queue.append(('ping', who))
+      # We should add them right away to prevent complete flodding
+      #  while we are handling the pong.
+      # Then we should just not assume too much about our peer list.
+      # Perhaps sanitize/check the list once in a while..
+      self.peers.append(who)
     return True
   
   def pong(self, who = None):
@@ -102,8 +113,7 @@ class Discover():
   def hello(self, known_address = None):
     print 'hello'
     server = xmlrpclib.Server(known_address)
-    timeout_and_retry(
-        lambda: server.ping('http://%s:%s' % (self.host, self.port)))
+    timeout_and_retry(lambda: server.ping(self.me))
     return True
 
   def plist(self):
@@ -113,12 +123,42 @@ class Discover():
   def nlist(self):
     print 'nlist'
     return self.neighbours
+  
+  def do_actions(self):
+    # TODO(cskau): add automatic idle, accounting actions
+    while True:
+      if self.action_queue:
+        try:
+          action = self.action_queue[0]
+          if action[0] == 'ping':
+            who = action[1]
+            server = xmlrpclib.Server(who)
+            timeout_and_retry(lambda: server.pong(self.me))
+            for peer in self.peers:
+              if peer != self.me and peer != who:
+                server = xmlrpclib.Server(peer)
+                timeout_and_retry(lambda: server.ping(who))
+          elif action[0] == 'neighbour?':
+            who = action[1]
+            server = xmlrpclib.Server(who)
+            answer_yn, neighbour_name, neighbour_capacity = timeout_and_retry(
+                lambda: server.neighbour_q(self.me, self.capacity))
+            print 'Friends %s ? %s' % (who, answer_yn)
+            if answer_yn:
+              self.neighbours.append(
+                  Neighbour(neighbour_name, neighbour_capacity))
+        except xmlrpclib.Fault as f:
+          print 'XMLRPC Fault: %s' % f
+          continue
+        else:
+          self.action_queue = self.action_queue[1:]
+      else:
+        time.sleep(1)
 
   def serve(self, host = None, port = None):
     _host = host if not host is None else self.host
     _port = port if not port is None else self.port
     self.server = SimpleXMLRPCServer.SimpleXMLRPCServer((_host, _port))
-    self.server.timeout = 1
     self.server.register_function(self.hello, "hello")
     self.server.register_function(self.plist, "plist")
     self.server.register_function(self.ping, "ping")
@@ -127,36 +167,7 @@ class Discover():
     self.server.register_function(self.neighbour_q, "neighbour_q")
     self.server.register_function(self.as_neighbour, "as_neighbour")
     print 'Serving on: %s' % self.me
-    # instead of serve_forever, we stop to check our action queue every loop
-    while True:
-      self.server.handle_request()
-      if self.action_queue:
-        try:
-          action = self.action_queue[0]
-          if action[0] == 'ping':
-            who = action[1]
-            self.peers.append(who)
-            server = xmlrpclib.Server(who)
-            timeout_and_retry(
-                lambda:server.pong('http://%s:%s' % (self.host, self.port)))
-            for peer in self.peers:
-              if peer != self.me and peer != who:
-                server = xmlrpclib.Server(peer)
-                timeout_and_retry(lambda: server.ping(who))
-          elif action[0] == 'neighbour?':
-            who = action[1]
-            server = xmlrpclib.Server(who)
-            answer_yn, neighbour_name, neighbout_capacity = timeout_and_retry(
-                lambda: server.neighbour_q(
-                    'http://%s:%s' % (self.host, self.port),
-                    self.capacity))
-            if answer_yn:
-              self.neighbours.append(
-                  Neighbour(neighbour_name, neighbour_capacity))
-        except:
-          continue
-        finally:
-          self.action_queue = self.action_queue[1:]
+    self.server.serve_forever()
 
 
 class Client():
@@ -212,12 +223,18 @@ class Client():
           #either we should print to std.out or a file stream
           if len(args) > 1 and "-o" == args[-2]:
             filename = args[-1]
-            output_stream = open(filename, 'w')
+            output_stream = open(filename, 'w', 0)
             args = args[:-2]
+            print filename
           given_peers = []
           if len(args) > 1:
             given_peers = args[1:]
           self.nlist(output_stream, given_peers)
+        elif 'help' in user_input:
+          print 'Available commands:'
+          print ' hello <PORT>'
+          print ' plist'
+          print ' nlist'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
@@ -235,9 +252,10 @@ class TestDicovery():
       try:
         server = xmlrpclib.Server(known_address)
         actual_set = set(timeout_and_retry(lambda: server.plist()))
-      except:
+      except xmlrpclib.Fault as f:
+        print 'XMLRPC Fault: %s' % f
         continue
-      finally:
+      else:
         if(expected_set == actual_set):
           print (
               'Test succeeded for %s with discovery of %s peer(s)' %
@@ -256,13 +274,16 @@ if __name__ == '__main__':
     host = sys.argv[3] if len(sys.argv) > 3 else None
     expected_set = set(json.loads(sys.argv[4]) if len(sys.argv) > 4 else '')
     TestDicovery().testDiscovery(host, port, expected_set)
-  else:
+  elif len(sys.argv) > 2:
     port = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    capacity = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     if '--interactive' in sys.argv[1:]:
       client = Client('localhost', port)
       client.interactive()
     else:
-      name = sys.argv[1]
-      peer = Discover(name, 'localhost', port, capacity)
-      peer.serve()
+      name = sys.argv[1] if len(sys.argv) > 1 else None
+      capacity = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+      node = Discover(name, 'localhost', port, capacity)
+      threading.Thread(target = node.serve).start()
+      threading.Thread(target = node.do_actions).start()
+  else:
+    print './discover.py [--test] [--interactive] [NAME] <PORT> <CAPACITY>'

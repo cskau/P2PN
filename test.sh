@@ -8,19 +8,33 @@ START="["
 END="]"
 ADRESSES=""
 
+# range from which to draw the random neighbour capacities
+CAPACITY_FROM=1
+CAPACITY_TO=10
+
 # dynamic vars
 PORT_FROM=$(($PORT + 1))
 PORT_TO=$(($PORT + $NODES))
 
-mkdir ./logs
+
+getRandomInRange() {
+  echo $((($RANDOM % $2) + $1))
+}
+
+
+mkdir -p ./logs
+mkdir -p ./dots
+
 
 echo "Setting up root.."
 # setup seed peer in the background
-python -u ./discover.py p$PORT $PORT $CAP &> ./logs/$PORT.log &
+CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
+python -u ./discover.py p$PORT $PORT $CAPACITY &> ./logs/$PORT.log &
 
 echo "Setting up $NODES nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
-  python -u ./discover.py p$c $c $CAP &> ./logs/$c.log & # start in background
+  CAPACITY=$(getRandomInRange $CAPACITY_FROM $CAPACITY_TO)
+  python -u ./discover.py p$c $c $CAPACITY &> ./logs/$c.log & # start in background
 done
 
 
@@ -30,7 +44,6 @@ sleep 1
 echo "Connecting nodes.."
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "hello http://localhost:$PORT" | ./discover.py --interactive $c &> /dev/null
-  #sleep 1
 done
 
 sleep 10
@@ -41,7 +54,15 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   ./discover.py --test $c localhost $START$ADRESSES$END
 done
 
-# wait for peers to come up before connecting to them
+sleep 1
+
+echo "More dots!!"
+echo "nlist -o ./dots/g$PORT.dot" | ./discover.py --interactive $PORT &> /dev/null
+for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
+  echo "nlist -o ./dots/g$c.dot" | ./discover.py --interactive $c &> /dev/null
+done
+dot -O -Tpng ./dots/*.dot
+
 sleep 1
 
 # start interactive
@@ -50,6 +71,7 @@ sleep 1
 #./discover.py --interactive 8004
 
 bash
+
 
 # kill all spawned processes
 kill `jobs -p`
