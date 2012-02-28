@@ -109,8 +109,8 @@ class Discover(threading.Thread):
   
   def pong(self, who = None):
     print 'pong %s' % who
-    if who != self.peer_info:
-      peer = Peer(from_dict = who)
+    peer = Peer(from_dict = who)
+    if peer != self.peer_info:
       self.peers[peer.name] = peer
       self.action_queue.append(('neighbour?', peer))
     return True
