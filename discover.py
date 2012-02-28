@@ -210,10 +210,10 @@ class Client():
     # Print graphviz
     print >> output_stream, 'graph network {'
     for peer_name in nodes:
+      print >> output_stream, '"%s";' % (peers[peer_name])
       for neighbour in nodes[peer_name]:
         neighbour_info = Peer(from_dict = neighbour)
-        print >> output_stream, '"%s" -- "%s";' % (
-            peers[peer_name], neighbour_info)
+        print >> output_stream, '"%s" -- "%s";' % (peers[peer_name], neighbour_info)
     print >> output_stream, '}'
 
   def interactive(self):
