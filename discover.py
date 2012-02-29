@@ -97,7 +97,7 @@ class Discover(threading.Thread):
   def neighbour_q(self, who_info_dict):
     who = Peer(from_dict = who_info_dict)
     print 'neighbour_q: %s' % (who)
-    answer = self._accept_neighbour(capacity)
+    answer = self._accept_neighbour(who.capacity)
     if (answer == True):
       self.neighbours.append(who)
     return (answer, self.peer_info)
@@ -153,13 +153,14 @@ class Discover(threading.Thread):
                 server = xmlrpclib.Server(peer.uri())
                 timeout_and_retry(lambda: server.ping(who))
           elif action[0] == 'neighbour?':
-            who = action[1]
-            server = xmlrpclib.Server(who.uri())
-            answer_yn, neighbour = timeout_and_retry(
-                lambda: server.neighbour_q(self.peer_info))
-            print 'Friends %s ? %s' % (who, answer_yn)
-            if answer_yn:
-              self.neighbours.append(neighbour)
+            if len(self.neighbours) < self.peer_info.capacity:
+              who = action[1]
+              server = xmlrpclib.Server(who.uri())
+              answer_yn, neighbour = timeout_and_retry(
+                  lambda: server.neighbour_q(self.peer_info))
+              print 'Friends %s ? %s' % (who, answer_yn)
+              if answer_yn:
+                self.neighbours.append(neighbour)
         except xmlrpclib.Fault as f:
           print 'XMLRPC Fault: %s' % f
           continue
@@ -217,7 +218,7 @@ class Client():
       nodes[peer_name] = timeout_and_retry(lambda: server.nlist())
 
     # Print graphviz
-    print >> output_stream, 'graph network {'
+    print >> output_stream, 'strict graph network {'
     for peer_name in nodes:
       print >> output_stream, '"%s";' % (peers[peer_name])
       for neighbour in nodes[peer_name]:
@@ -257,7 +258,7 @@ class Client():
           print ' nlist'
         else:
           print 'Invalid command: %s' % user_input
-      except (EOFError):
+      except (EOFError, KeyboardInterrupt):
         # for terminal piping
         print
         break

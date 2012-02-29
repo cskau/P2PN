@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NODES=10
+NODES=20
 PORT=8000
 
 START="["
@@ -64,7 +64,6 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "nlist -o ./dots/g$c.dot" | ./discover.py --interactive $c &> /dev/null
 done
 PEER_NAMES=`python -c "print ' '.join([('p%i' % i) for i in range($(($PORT_FROM)), $(($PORT_TO + 1)))])"`
-echo $PEER_NAMES
 echo "nlist $PEER_NAMES -o ./dots/all.dot" | ./discover.py --interactive 8000 &> /dev/null
 $DOT -O -Tpng ./dots/*.dot
 
