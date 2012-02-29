@@ -73,7 +73,7 @@ sleep 1
 
 echo "Starting interactive BASH .."
 
-bash
+bash --rcfile <(echo "export PS1='sub-bash $ '")
 
 echo "Killing the children.."
 echo "Oh, won't somebody think of the children!?!"

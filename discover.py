@@ -259,6 +259,7 @@ class Client():
           print 'Invalid command: %s' % user_input
       except (EOFError):
         # for terminal piping
+        print
         break
 
 
