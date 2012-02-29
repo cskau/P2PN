@@ -61,6 +61,9 @@ echo "nlist -o ./dots/g$PORT.dot" | ./discover.py --interactive $PORT &> /dev/nu
 for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "nlist -o ./dots/g$c.dot" | ./discover.py --interactive $c &> /dev/null
 done
+PEER_NAMES=`python -c "print ' '.join([('p%i' % i) for i in range($(($PORT_FROM)), $(($PORT_TO + 1)))])"`
+echo $PEER_NAMES
+echo "nlist $PEER_NAMES -o ./dots/all.dot" | ./discover.py --interactive 8000 &> /dev/null
 dot -O -Tpng ./dots/*.dot
 
 sleep 1
@@ -70,5 +73,5 @@ sleep 1
 
 bash
 
-# kill all spawned processes
+# kill all spawned pprocesses
 kill `jobs -p`

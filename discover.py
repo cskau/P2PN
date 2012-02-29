@@ -45,7 +45,7 @@ def timeout_and_retry(lmbd, timeout = None, retries = 10):
       socket.setdefaulttimeout(None)
       return res
   socket.setdefaulttimeout(None)
-  raise xmlrpclib.Fault('', 'Failed after %i retries.' % retries);
+  raise xmlrpclib.Fault(-32300, 'Failed after %i retries.' % retries);
 
 
 class Peer():
@@ -65,6 +65,14 @@ class Peer():
 
   def __repr__(self):
     return '%s(%s)' % (self.name, self.capacity)
+
+  def __eq__(self, other):
+    print 'EQEQEQEQEQ'
+    return (
+      self.name == other.name and
+      self.host == other.host and
+      self.port == other.port and
+      self.capacity == other.capacity)
 
 
 class Discover(threading.Thread):
@@ -97,14 +105,16 @@ class Discover(threading.Thread):
 
   def ping(self, who):
     print 'ping: %s' % who
-    if not who is None and not who['name'] in self.peers and who != self.peer_info:
+    if not who is None and not who['name'] in self.peers:
       peer = Peer(from_dict = who)
-      self.action_queue.append(('ping', peer))
-      # We should add them right away to prevent complete flodding
-      #  while we are handling the pong.
-      # Then we should just not assume too much about our peer list.
-      # Perhaps sanitize/check the list once in a while..
-      self.peers[peer.name] = peer
+      if peer != self.peer_info:
+        print self.peer_info, self.peer_info.__dict__, peer, peer.__dict__
+        self.action_queue.append(('ping', peer))
+        # We should add them right away to prevent complete flodding
+        #  while we are handling the pong.
+        # Then we should just not assume too much about our peer list.
+        # Perhaps sanitize/check the list once in a while..
+        self.peers[peer.name] = peer
     return True
   
   def pong(self, who = None):
