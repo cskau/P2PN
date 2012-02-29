@@ -71,7 +71,14 @@ sleep 1
 # start interactive
 ./discover.py --interactive $PORT
 
+echo "Starting interactive BASH .."
+
 bash
+
+echo "Killing the children.."
+echo "Oh, won't somebody think of the children!?!"
 
 # kill all spawned pprocesses
 kill `jobs -p`
+
+echo "Exiting.."
