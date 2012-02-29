@@ -45,7 +45,7 @@ def timeout_and_retry(lmbd, timeout = None, retries = 10):
       socket.setdefaulttimeout(None)
       return res
   socket.setdefaulttimeout(None)
-  raise xmlrpclib.Fault('', 'Failed after %i retries.' % retries);
+  raise xmlrpclib.Fault(-32300, 'Failed after %i retries.' % retries);
 
 class Peer(object):
   def __init__(
@@ -64,6 +64,14 @@ class Peer(object):
 
   def __repr__(self):
     return '%s(%s)' % (self.name, self.capacity)
+
+  def __eq__(self, other):
+    return (
+      self.name == other.name and
+      self.host == other.host and
+      self.port == other.port and
+      self.capacity == other.capacity)
+
 
 class Discover(threading.Thread):
   """A peer-to-peer node"""
@@ -101,12 +109,14 @@ class Discover(threading.Thread):
     print 'ping: %s %s' % (peer.uri(), self.peer_info.uri())
     if not who is None and not who['name'] in self.peers and peer.uri() != self.peer_info.uri():
       peer = Peer(from_dict = who)
-      self.action_queue.append(('ping', peer))
-      # We should add them right away to prevent complete flodding
-      #  while we are handling the pong.
-      # Then we should just not assume too much about our peer list.
-      # Perhaps sanitize/check the list once in a while..
-      self.peers[peer.name] = peer
+      if peer != self.peer_info:
+        print self.peer_info, self.peer_info.__dict__, peer, peer.__dict__
+        self.action_queue.append(('ping', peer))
+        # We should add them right away to prevent complete flodding
+        #  while we are handling the pong.
+        # Then we should just not assume too much about our peer list.
+        # Perhaps sanitize/check the list once in a while..
+        self.peers[peer.name] = peer
     return True
   
   def has_found_file(self,msg_id):
@@ -138,7 +148,7 @@ class Discover(threading.Thread):
   def pong(self, who = None):
     print 'pong %s' % who
     peer = Peer(from_dict = who)
-    if peer != self.peer_info:
+    if peer != self.peer_info and not who['name'] in self.peers:
       self.peers[peer.name] = peer
       self.action_queue.append(('neighbour?', peer))
     return True
@@ -275,10 +285,10 @@ class Client():
     # Print graphviz
     print >> output_stream, 'graph network {'
     for peer_name in nodes:
+      print >> output_stream, '"%s";' % (peers[peer_name])
       for neighbour in nodes[peer_name]:
         neighbour_info = Peer(from_dict = neighbour)
-        print >> output_stream, '"%s" -- "%s";' % (
-            peers[peer_name], neighbour_info)
+        print >> output_stream, '"%s" -- "%s";' % (peers[peer_name], neighbour_info)
     print >> output_stream, '}'
 
   def interactive(self):
@@ -324,6 +334,7 @@ class Client():
           print 'Invalid command: %s' % user_input
       except (EOFError):
         # for terminal piping
+        print
         break
 
 
