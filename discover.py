@@ -67,7 +67,6 @@ class Peer():
     return '%s(%s)' % (self.name, self.capacity)
 
   def __eq__(self, other):
-    print 'EQEQEQEQEQ'
     return (
       self.name == other.name and
       self.host == other.host and
