@@ -72,12 +72,12 @@ class Discover(threading.Thread):
   peers = {}
   msgs_received = {}
   files = {}
-
   action_queue = []
 
   def __init__(self, name, host, port, capacity):
     self.peer_info = Peer(name, host, port, capacity)
-    self.files[name] = 'Lala'
+    self.files[random.choice(('bacon', 'cheese', 'salad','tea','rice','cow','beer','wine','candy',
+      'sugar','apple','orange','ice cream','banana','cucumber','carrot','pineapple'))] = 'Nice recipe'
 
   def who(self):
     return self.peer_info
@@ -157,6 +157,9 @@ class Discover(threading.Thread):
     print 'nlist'
     return self.neighbours
   
+  def get(self, file_to_get):
+    return self.files[file_to_get]
+
   def do_actions(self):
     # TODO(cskau): add automatic idle, accounting actions
     while True:
@@ -207,6 +210,7 @@ class Discover(threading.Thread):
     self.server.register_function(self.found, "found")
     self.server.register_function(self.has_found_file, "has_found_file")
     self.server.register_function(self.who, "who")
+    self.server.register_function(self.get, "get")
     print 'Serving on: %s' % self.peer_info.uri()
     self.server.serve_forever()
 
@@ -227,7 +231,11 @@ class Client():
 
   def plist(self):
     server = xmlrpclib.Server(self.server_address)
-    print [Peer(from_dict=p) for p in timeout_and_retry(lambda: server.plist())]
+    print [peer(from_dict=p) for p in timeout_and_retry(lambda: server.plist())]
+
+  def get(self, file_to_get, file_holder):
+    server = xmlrpclib.Server(file_holder)
+    print server.get(file_to_get)
 
   def find(self, file_to_find, TTL=4):
     server = xmlrpclib.Server(self.server_address)
@@ -301,12 +309,17 @@ class Client():
         elif 'find' in user_input:
           file_to_find = user_input[len('find') +1:]
           self.find(file_to_find)
+        elif 'get' in user_input:
+          args = user_input.split()
+          file_to_get, file_holder = args[1:]
+          self.get(file_to_get, file_holder)
         elif 'help' in user_input:
           print 'Available commands:'
           print ' hello <PORT>'
           print ' plist'
           print ' nlist'
           print ' find'
+          print ' get'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
