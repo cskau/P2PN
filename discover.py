@@ -85,7 +85,7 @@ class Discover(threading.Thread):
   def __init__(self, name, host, port, capacity):
     self.peer_info = Peer(name, host, port, capacity)
     self.files[random.choice(('bacon', 'cheese', 'salad','tea','rice','cow','beer','wine','candy',
-      'sugar','apple','orange','ice cream','banana','cucumber','carrot','pineapple'))] = 'Nice recipe'
+      'sugar','apple','orange','icecream','banana','cucumber','carrot','pineapple'))] = 'Nice recipe'
 
   def who(self):
     return self.peer_info
@@ -168,7 +168,10 @@ class Discover(threading.Thread):
     return self.neighbours
   
   def get(self, file_to_get):
-    return self.files[file_to_get]
+    if file_to_get in self.files:
+      return self.files[file_to_get]
+    else:
+      return 'I don\'t have that bloody file, kay?!'
 
   def do_actions(self):
     # TODO(cskau): add automatic idle, accounting actions
@@ -254,7 +257,7 @@ class Client():
     found_file = timeout_and_retry(lambda: server.find(self.server_address,msg_id, file_to_find, TTL))
     if found_file == False:
       print 'Searching for file %s' % file_to_find
-      for i in range(5):
+      for i in range(TTL*2+3):
         time.sleep(0.5)
         found_file, file_holder = server.has_found_file(msg_id) 
         if found_file == True:
@@ -317,8 +320,13 @@ class Client():
             given_peers = args[1:]
           self.nlist(output_stream, given_peers)
         elif 'find' in user_input:
-          file_to_find = user_input[len('find') +1:]
-          self.find(file_to_find)
+          args = user_input.split()
+          if len(args) > 2:
+            file_to_get, TTL = args[1], int(args[2])
+            self.find(file_to_get, TTL)
+          else:
+            file_to_get = args[1]
+            self.find(file_to_get)
         elif 'get' in user_input:
           args = user_input.split()
           file_to_get, file_holder = args[1:]
