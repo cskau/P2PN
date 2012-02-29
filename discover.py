@@ -217,7 +217,7 @@ class Client():
       nodes[peer_name] = timeout_and_retry(lambda: server.nlist())
 
     # Print graphviz
-    print >> output_stream, 'graph network {'
+    print >> output_stream, 'strict graph network {'
     for peer_name in nodes:
       print >> output_stream, '"%s";' % (peers[peer_name])
       for neighbour in nodes[peer_name]:
