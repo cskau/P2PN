@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 
-NODES=10
+NODES=20
 PORT=8000
 
 START="["
 END="]"
 ADRESSES=""
+
+DOT=circo
 
 # range from which to draw the random neighbour capacities
 CAPACITY_FROM=1
@@ -62,9 +64,8 @@ for (( c = $PORT_FROM; c <= $PORT_TO; c++ )); do
   echo "nlist -o ./dots/g$c.dot" | ./discover.py --interactive $c &> /dev/null
 done
 PEER_NAMES=`python -c "print ' '.join([('p%i' % i) for i in range($(($PORT_FROM)), $(($PORT_TO + 1)))])"`
-echo $PEER_NAMES
 echo "nlist $PEER_NAMES -o ./dots/all.dot" | ./discover.py --interactive 8000 &> /dev/null
-dot -O -Tpng ./dots/*.dot
+$DOT -O -Tpng ./dots/*.dot
 
 sleep 1
 
@@ -73,7 +74,7 @@ sleep 1
 
 echo "Starting interactive BASH .."
 
-bash
+bash --rcfile <(echo "export PS1='sub-bash $ '")
 
 echo "Killing the children.."
 echo "Oh, won't somebody think of the children!?!"
