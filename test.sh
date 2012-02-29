@@ -7,6 +7,8 @@ START="["
 END="]"
 ADRESSES=""
 
+DOT=circo
+
 # range from which to draw the random neighbour capacities
 CAPACITY_FROM=1
 CAPACITY_TO=20
@@ -64,7 +66,7 @@ done
 PEER_NAMES=`python -c "print ' '.join([('p%i' % i) for i in range($(($PORT_FROM)), $(($PORT_TO + 1)))])"`
 echo $PEER_NAMES
 echo "nlist $PEER_NAMES -o ./dots/all.dot" | ./discover.py --interactive 8000 &> /dev/null
-dot -O -Tpng ./dots/*.dot
+$DOT -O -Tpng ./dots/*.dot
 
 sleep 1
 
