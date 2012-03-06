@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-NODES=20
+NODES=15
 PORT=8000
 
 START="["
 END="]"
 ADRESSES=""
 
-DOT=circo
+DOT=dot
 
 # range from which to draw the random neighbour capacities
 CAPACITY_FROM=1
-CAPACITY_TO=20
+CAPACITY_TO=15
 
 # dynamic vars
 PORT_FROM=$(($PORT + 1))

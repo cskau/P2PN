@@ -25,7 +25,6 @@ import random
 import threading
 import time
 
-
 def timeout_and_retry(lmbd, timeout = None, retries = 10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
@@ -92,7 +91,21 @@ class Discover(threading.Thread):
     """Neighbour request decision function"""
     if len(self.neighbours) >= self.peer_info.capacity:
       return False
-    return random.choice((True, False))
+    else: 
+      c_max = max(self.peer_info.capacity, c0) * 1.0; # convert to decimal values
+      c_min = min(self.peer_info.capacity, c0) * 1.0;
+      #print 'c_max: %s & c_min: %s' % (c_max, c_min);
+      formula = (1/(c_min/c_max)) - (1/(c_min+c_max));
+      #print 'formula: %s' % formula;
+      propability = formula * random.uniform(0, 1);
+      #print 'propability: %s' % propability;
+      # over 0.5 is a good choice
+      if (propability > 0.5):
+        #print 'True';
+        return True;
+      else:
+        #print 'False';
+        return False;
 
   def neighbour_q(self, who_info_dict):
     who = Peer(from_dict = who_info_dict)
