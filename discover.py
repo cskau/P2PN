@@ -435,9 +435,9 @@ class Client():
           print ' hello <PORT>'
           print ' plist'
           print ' nlist'
-          print ' find file [TTL]'
-          print ' wfind file TTL #walkers'
-          print ' get file holder'
+          print ' find <file> [TTL]'
+          print ' wfind <file> <TTL> <#walkers>'
+          print ' get <file> <holder>'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError, KeyboardInterrupt):
