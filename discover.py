@@ -260,13 +260,6 @@ class Discover(threading.Thread):
               print 'Friends %s ? %s' % (who, answer_yn)
               if answer_yn:
                 self.neighbours.append(Peer(from_dict = neighbour))
-            who = action[1]
-            server = xmlrpclib.Server(who.uri())
-            answer_yn, neighbour = timeout_and_retry(
-                lambda: server.neighbour_q(self.peer_info))
-            print 'Friends %s ? %s' % (who, answer_yn)
-            if answer_yn:
-              self.neighbours.append(Peer(from_dict = neighbour))
           elif action[0] == 'wfind':
             server = xmlrpclib.Server(action[1])
             requesting_peer,msg_id, file_to_find, TTL, nodes_visited = action[2:7]
