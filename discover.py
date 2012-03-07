@@ -47,8 +47,7 @@ def timeout_and_retry(lmbd, timeout = None, retries = 10):
   socket.setdefaulttimeout(None)
   raise xmlrpclib.Fault(-32300, 'Failed after %i retries.' % retries);
 
-
-class Peer():
+class Peer(object):
   def __init__(
       self,
       name = None, host = None, port = None, capacity = None,
@@ -79,7 +78,8 @@ class Discover(threading.Thread):
   peer_info = None
   neighbours = []
   peers = {}
-
+  msgs_received = {}
+  files = {}
   action_queue = []
 
   def __init__(self, name, host, port, capacity):
@@ -103,8 +103,9 @@ class Discover(threading.Thread):
     return (answer, self.peer_info)
 
   def ping(self, who):
-    print 'ping: %s' % who
-    if not who is None and not who['name'] in self.peers:
+    peer = Peer(from_dict = who)
+    print 'ping: %s %s' % (peer.uri(), self.peer_info.uri())
+    if not who is None and not who['name'] in self.peers and peer.uri() != self.peer_info.uri():
       peer = Peer(from_dict = who)
       if peer != self.peer_info:
         print self.peer_info, self.peer_info.__dict__, peer, peer.__dict__
@@ -116,6 +117,84 @@ class Discover(threading.Thread):
         self.peers[peer.name] = peer
     return True
   
+  def has_found_file(self,msg_id):
+    return self.msgs_received[msg_id]
+
+  def found(self, msg_id, file_holder):
+    msgs_received = self.msgs_received[msg_id][2]
+    self.msgs_received[msg_id] = (True,file_holder, msgs_received)
+    return True 
+
+  def get_nr_search_msg(self, msg_id):
+    msgs_received = None
+    if msg_id in self.msgs_received:
+      msgs_received = self.msgs_received[msg_id][2]
+    if msgs_received == None:
+      msgs_received = 0
+    return msgs_received
+
+  def has_seen_msg_before(self, msg_id):
+    if msg_id not in self.msgs_received:
+      self.msgs_received[msg_id] = (False,self.peer_info,1)
+      return False
+    else:
+      old_values = self.msgs_received[msg_id]
+      found_file, file_holder, msgs_received = old_values[0],old_values[1],old_values[2]+1
+      self.msgs_received[msg_id] = (found_file,file_holder,msgs_received)
+      return True
+
+  def has_file(self, file_to_find,requesting_peer, msg_id):
+    if file_to_find in self.files:
+      print 'Found file in: %s' % 'own files'
+      if requesting_peer != self.peer_info.uri():
+        self.action_queue.append(('found', msg_id, requesting_peer))
+      return True
+    return False
+
+  def start_walker(self, requesting_peer, msg_id, file_to_find, TTL, k_walkers):
+    nodes_visited = [self.peer_info.uri()]
+    if self.has_seen_msg_before(msg_id) == False:
+      if self.has_file(file_to_find,requesting_peer, msg_id) == True:
+        return True
+      else:
+        neighbours_to_visit = []
+        for i in range(k_walkers):
+          neighbour = random.choice(self.neighbours).uri()
+          neighbours_to_visit.append(neighbour)
+          nodes_visited.append(neighbour)
+        for neighbour in neighbours_to_visit:
+          self.action_queue.append(('wfind', neighbour, requesting_peer, msg_id, file_to_find, TTL, nodes_visited))
+    return False
+
+  def walker_find(self, requesting_peer, msg_id, file_to_find, TTL, nodes_visited):
+    if TTL <= 0:
+      return False
+    TTL = TTL - 1
+    self.has_seen_msg_before(msg_id)
+    if self.has_file(file_to_find,requesting_peer,msg_id) == True:
+      return True
+    else:
+      nodes_visited.append(self.peer_info.uri())
+      nodes_not_yet_visited = list(set(self.neighbours) - set(nodes_visited))
+      if len(nodes_not_yet_visited) > 0:
+        neighbour = random.choice(nodes_not_yet_visited).uri()
+      else:
+        neighbour = random.choice(self.neighbours).uri()
+      self.action_queue.append(('wfind', neighbour, requesting_peer, msg_id, file_to_find, TTL, nodes_visited))
+    return False
+
+  def find(self, requesting_peer,msg_id, file_to_find, TTL):
+    if TTL <= 0:
+      return False
+    TTL = TTL - 1
+    if self.has_seen_msg_before(msg_id) == False:
+      if self.has_file(file_to_find,requesting_peer, msg_id) == True:
+        return True
+      else:
+        for neighbour in self.neighbours:
+          self.action_queue.append(('find', neighbour.uri(), requesting_peer, msg_id, file_to_find, TTL))
+    return False
+
   def pong(self, who = None):
     print 'pong %s' % who
     peer = Peer(from_dict = who)
@@ -125,7 +204,7 @@ class Discover(threading.Thread):
     return True
 
   def hello(self, known_address = None):
-    print 'hello'
+    print 'hello %s' % known_address
     server = xmlrpclib.Server(known_address)
     timeout_and_retry(lambda: server.ping(self.peer_info))
     return True
@@ -138,6 +217,12 @@ class Discover(threading.Thread):
     print 'nlist'
     return self.neighbours
   
+  def get(self, file_to_get):
+    if file_to_get in self.files:
+      return self.files[file_to_get]
+    else:
+      return 'I don\'t have that bloody file, kay?!'
+
   def do_actions(self):
     # TODO(cskau): add automatic idle, accounting actions
     while True:
@@ -159,7 +244,18 @@ class Discover(threading.Thread):
                 lambda: server.neighbour_q(self.peer_info))
             print 'Friends %s ? %s' % (who, answer_yn)
             if answer_yn:
-              self.neighbours.append(neighbour)
+              self.neighbours.append(Peer(from_dict = neighbour))
+          elif action[0] == 'wfind':
+            server = xmlrpclib.Server(action[1])
+            requesting_peer,msg_id, file_to_find, TTL, nodes_visited = action[2:7]
+            timeout_and_retry(lambda: server.walker_find(requesting_peer,msg_id, file_to_find, TTL,nodes_visited))
+          elif action[0] == 'find':
+            server = xmlrpclib.Server(action[1])
+            requesting_peer,msg_id, file_to_find, TTL = action[2:6]
+            timeout_and_retry(lambda: server.find(requesting_peer,msg_id, file_to_find, TTL))
+          elif action[0] == 'found':
+            server = xmlrpclib.Server(action[2])
+            timeout_and_retry(lambda: server.found(action[1], self.peer_info.uri()))
         except xmlrpclib.Fault as f:
           print 'XMLRPC Fault: %s' % f
           continue
@@ -177,7 +273,14 @@ class Discover(threading.Thread):
     self.server.register_function(self.pong, "pong")
     self.server.register_function(self.nlist, "nlist")
     self.server.register_function(self.neighbour_q, "neighbour_q")
+    self.server.register_function(self.find, "find")
+    self.server.register_function(self.walker_find, "walker_find")
+    self.server.register_function(self.found, "found")
+    self.server.register_function(self.has_found_file, "has_found_file")
     self.server.register_function(self.who, "who")
+    self.server.register_function(self.get, "get")
+    self.server.register_function(self.get_nr_search_msg, 'get_nr_search_msg')
+    self.server.register_function(self.start_walker, 'start_walker')
     print 'Serving on: %s' % self.peer_info.uri()
     self.server.serve_forever()
 
@@ -196,10 +299,50 @@ class Client():
     server = xmlrpclib.Server(self.server_address)
     timeout_and_retry(lambda: server.hello(who))
 
-  def plist(self):
+  def plist(self, should_print = True):
     server = xmlrpclib.Server(self.server_address)
-    print [Peer(from_dict=p) for p in timeout_and_retry(lambda: server.plist())]
+    plist = [Peer(from_dict=p) for p in timeout_and_retry(lambda: server.plist())]
+    if should_print == True:
+      print plist
+    return plist
 
+  def get(self, file_to_get, file_holder):
+    server = xmlrpclib.Server(file_holder)
+    print server.get(file_to_get)
+
+  def walker_find(self, file_to_find, TTL, k_walkers):
+    server = xmlrpclib.Server(self.server_address)
+    msg_id = random.randint(0,100000000)
+    self.common_find(lambda: server.start_walker(self.server_address,msg_id, file_to_find, TTL, k_walkers), TTL, server, msg_id)
+
+  def find(self, file_to_find, TTL=4):
+    server = xmlrpclib.Server(self.server_address)
+    msg_id = random.randint(0,100000000)
+    self.common_find(lambda: server.find(self.server_address,msg_id, file_to_find, TTL), TTL, server, msg_id)
+
+  def common_find(self, search_strategy, TTL, server, msg_id):
+    file_holder = self.server_address
+    found_file = timeout_and_retry(search_strategy)
+    if found_file == False:
+      print 'Searching for file'
+      for i in range(TTL):
+        time.sleep(1)
+        found_file, file_holder = timeout_and_retry(lambda: server.has_found_file(msg_id))[0:2] 
+        if found_file == True:
+          break
+        else:
+          print '.'   
+    if found_file == True:
+      print 'Found file at %s' % file_holder
+    else:    
+      print 'Didn\'t find file'
+    msgs_received = 0
+    for peer in self.plist(False):
+      server = xmlrpclib.Server(peer.uri())
+      msgs_received += timeout_and_retry(lambda: server.get_nr_search_msg(msg_id))
+
+    print 'Messages used for this search: %s' % msgs_received
+  
   def nlist(self, output_stream, given_peers):
     #remember to print our own neighbours
     server = xmlrpclib.Server(self.server_address)
@@ -249,19 +392,43 @@ class Client():
           given_peers = []
           if len(args) > 1:
             given_peers = args[1:]
-          self.nlist(output_stream, given_peers)
+          self.nlist(output_stream, given_peers)  
+        elif 'wfind' in user_input:
+          args = user_input.split()
+          if len(args) == 4:
+            file_to_get, TTL, walkers = args[1], int(args[2]), int(args[3])
+            self.walker_find(file_to_get, TTL, walkers)
+          else:
+            print 'Missing parameters try help'
+        elif 'find' in user_input:
+          args = user_input.split()
+          if len(args) > 2:
+            file_to_get, TTL = args[1], int(args[2])
+            self.find(file_to_get, TTL)
+          else:
+            file_to_get = args[1]
+            self.find(file_to_get)
+        elif 'get' in user_input:
+          args = user_input.split()
+          if len(args) == 3:
+            file_to_get, file_holder = args[1:]
+            self.get(file_to_get, file_holder)
+          else:
+            print 'Missing parameters try help'
         elif 'help' in user_input:
           print 'Available commands:'
           print ' hello <PORT>'
           print ' plist'
           print ' nlist'
+          print ' find file [TTL]'
+          print ' wfind file TTL #walkers'
+          print ' get file holder'
         else:
           print 'Invalid command: %s' % user_input
       except (EOFError):
         # for terminal piping
         print
         break
-
 
  #################################### Test ####################################
 
