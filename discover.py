@@ -83,6 +83,8 @@ class Discover(threading.Thread):
 
   def __init__(self, name, host, port, capacity):
     self.peer_info = Peer(name, host, port, capacity)
+    self.files[random.choice(('bacon', 'cheese', 'salad','tea','rice','cow','beer','wine','candy',
+      'sugar','apple','orange','icecream','banana','cucumber','carrot','pineapple'))] = 'Nice recipe'
 
   def who(self):
     return self.peer_info
@@ -258,6 +260,24 @@ class Discover(threading.Thread):
               print 'Friends %s ? %s' % (who, answer_yn)
               if answer_yn:
                 self.neighbours.append(neighbour)
+            who = action[1]
+            server = xmlrpclib.Server(who.uri())
+            answer_yn, neighbour = timeout_and_retry(
+                lambda: server.neighbour_q(self.peer_info))
+            print 'Friends %s ? %s' % (who, answer_yn)
+            if answer_yn:
+              self.neighbours.append(Peer(from_dict = neighbour))
+          elif action[0] == 'wfind':
+            server = xmlrpclib.Server(action[1])
+            requesting_peer,msg_id, file_to_find, TTL, nodes_visited = action[2:7]
+            timeout_and_retry(lambda: server.walker_find(requesting_peer,msg_id, file_to_find, TTL,nodes_visited))
+          elif action[0] == 'find':
+            server = xmlrpclib.Server(action[1])
+            requesting_peer,msg_id, file_to_find, TTL = action[2:6]
+            timeout_and_retry(lambda: server.find(requesting_peer,msg_id, file_to_find, TTL))
+          elif action[0] == 'found':
+            server = xmlrpclib.Server(action[2])
+            timeout_and_retry(lambda: server.found(action[1], self.peer_info.uri()))
         except xmlrpclib.Fault as f:
           print 'XMLRPC Fault: %s' % f
           continue
