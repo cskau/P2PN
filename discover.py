@@ -171,17 +171,17 @@ class Discover(threading.Thread):
     if TTL <= 0:
       return False
     TTL = TTL - 1
-    if self.has_seen_msg_before(msg_id) == False:
-      if self.has_file(file_to_find,requesting_peer,msg_id) == True:
-        return True
+    self.has_seen_msg_before(msg_id)
+    if self.has_file(file_to_find,requesting_peer,msg_id) == True:
+      return True
+    else:
+      nodes_visited.append(self.peer_info.uri())
+      nodes_not_yet_visited = list(set(self.neighbours) - set(nodes_visited))
+      if len(nodes_not_yet_visited) > 0:
+        neighbour = random.choice(nodes_not_yet_visited).uri()
       else:
-        nodes_visited.append(self.peer_info.uri())
-        nodes_not_yet_visited = list(set(self.neighbours) - set(nodes_visited))
-        if len(nodes_not_yet_visited) > 0:
-          neighbour = random.choice(nodes_not_yet_visited).uri()
-        else:
-          neighbour = random.choice(self.neighbours).uri()
-        self.action_queue.append(('wfind', neighbour, requesting_peer, msg_id, file_to_find, TTL, nodes_visited))
+        neighbour = random.choice(self.neighbours).uri()
+      self.action_queue.append(('wfind', neighbour, requesting_peer, msg_id, file_to_find, TTL, nodes_visited))
     return False
 
   def find(self, requesting_peer,msg_id, file_to_find, TTL):
