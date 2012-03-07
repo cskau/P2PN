@@ -25,7 +25,6 @@ import random
 import threading
 import time
 
-
 def timeout_and_retry(lmbd, timeout = None, retries = 10):
   """Try calling (XML RPC) function until it succeeds or run out of tries"""
   res = None
@@ -92,20 +91,33 @@ class Discover(threading.Thread):
     """Neighbour request decision function"""
     if len(self.neighbours) >= self.peer_info.capacity:
       return False
-    return random.choice((True, False))
+    else: 
+      c_max = max(self.peer_info.capacity, c0) * 1.0; # convert to decimal values
+      c_min = min(self.peer_info.capacity, c0) * 1.0;
+      #print 'c_max: %s & c_min: %s' % (c_max, c_min);
+      formula = (1/(c_min/c_max)) - (1/(c_min+c_max));
+      #print 'formula: %s' % formula;
+      propability = formula * random.uniform(0, 1);
+      #print 'propability: %s' % propability;
+      # over 0.5 is a good choice
+      if (propability > 0.5):
+        #print 'True';
+        return True;
+      else:
+        #print 'False';
+        return False;
 
   def neighbour_q(self, who_info_dict):
     who = Peer(from_dict = who_info_dict)
     print 'neighbour_q: %s' % (who)
-    answer = self._accept_neighbour(capacity)
+    answer = self._accept_neighbour(who.capacity)
     if (answer == True):
       self.neighbours.append(who)
     return (answer, self.peer_info)
 
   def ping(self, who):
-    peer = Peer(from_dict = who)
-    print 'ping: %s %s' % (peer.uri(), self.peer_info.uri())
-    if not who is None and not who['name'] in self.peers and peer.uri() != self.peer_info.uri():
+    print 'ping: %s' % who
+    if not who is None and not who['name'] in self.peers:
       peer = Peer(from_dict = who)
       if peer != self.peer_info:
         print self.peer_info, self.peer_info.__dict__, peer, peer.__dict__
@@ -238,24 +250,14 @@ class Discover(threading.Thread):
                 server = xmlrpclib.Server(peer.uri())
                 timeout_and_retry(lambda: server.ping(who))
           elif action[0] == 'neighbour?':
-            who = action[1]
-            server = xmlrpclib.Server(who.uri())
-            answer_yn, neighbour = timeout_and_retry(
-                lambda: server.neighbour_q(self.peer_info))
-            print 'Friends %s ? %s' % (who, answer_yn)
-            if answer_yn:
-              self.neighbours.append(Peer(from_dict = neighbour))
-          elif action[0] == 'wfind':
-            server = xmlrpclib.Server(action[1])
-            requesting_peer,msg_id, file_to_find, TTL, nodes_visited = action[2:7]
-            timeout_and_retry(lambda: server.walker_find(requesting_peer,msg_id, file_to_find, TTL,nodes_visited))
-          elif action[0] == 'find':
-            server = xmlrpclib.Server(action[1])
-            requesting_peer,msg_id, file_to_find, TTL = action[2:6]
-            timeout_and_retry(lambda: server.find(requesting_peer,msg_id, file_to_find, TTL))
-          elif action[0] == 'found':
-            server = xmlrpclib.Server(action[2])
-            timeout_and_retry(lambda: server.found(action[1], self.peer_info.uri()))
+            if len(self.neighbours) < self.peer_info.capacity:
+              who = action[1]
+              server = xmlrpclib.Server(who.uri())
+              answer_yn, neighbour = timeout_and_retry(
+                  lambda: server.neighbour_q(self.peer_info))
+              print 'Friends %s ? %s' % (who, answer_yn)
+              if answer_yn:
+                self.neighbours.append(neighbour)
         except xmlrpclib.Fault as f:
           print 'XMLRPC Fault: %s' % f
           continue
@@ -360,7 +362,7 @@ class Client():
       nodes[peer_name] = timeout_and_retry(lambda: server.nlist())
 
     # Print graphviz
-    print >> output_stream, 'graph network {'
+    print >> output_stream, 'strict graph network {'
     for peer_name in nodes:
       print >> output_stream, '"%s";' % (peers[peer_name])
       for neighbour in nodes[peer_name]:
@@ -425,7 +427,7 @@ class Client():
           print ' get file holder'
         else:
           print 'Invalid command: %s' % user_input
-      except (EOFError):
+      except (EOFError, KeyboardInterrupt):
         # for terminal piping
         print
         break
